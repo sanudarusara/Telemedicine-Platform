@@ -1,0 +1,12 @@
+after starting the backend(payment-service) and the frontend(dummy-service) with npm start :
+
+- open a command prompt and run: (for stripe)
+stripe listen --forward-to http://localhost:5002/payments/webhook
+
+- and open another terminal in the VS code in the same place as backend(payment-service) and run: (for payhere)
+ngrok http 5002
+
+**this is to make the payment services stripe and payhere listen to the webhooks to make the payment status success.
+
+Stripe card number - 4242 4242 4242 4242
+PayHere card number - 4916217501611292

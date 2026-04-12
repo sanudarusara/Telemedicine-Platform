@@ -31,6 +31,7 @@ const submitSymptoms = async (req, res) => {
 
     res.status(201).json({
       message: "Symptom analysis completed",
+      disclaimer: "This is an AI-generated preliminary suggestion and not a medical diagnosis.",
       data: symptomCheck,
     });
   } catch (error) {

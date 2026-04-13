@@ -2,6 +2,12 @@ const Appointment = require('../models/Appointment');
 const externalServices = require('./externalServices');
 const { v4: uuidv4 } = require('uuid');
 
+// Kafka event publishing
+const { createEvent } = require('../../shared/kafka/eventFactory');
+const TOPICS = require('../../shared/kafka/topics');
+const EVENTS = require('../../shared/kafka/events');
+const kafka = require('../kafka');
+
 class AppointmentService {
   /**
    * Search for doctors by specialty
@@ -113,7 +119,27 @@ class AppointmentService {
         
     // 🔔 TRIGGER NOTIFICATION for appointment created
     await externalServices.sendNotification(appointment, 'created');
-        
+
+    // Publish Kafka event: appointment booked
+    try {
+      const event = createEvent({
+        eventType: EVENTS.APPOINTMENT_BOOKED,
+        userId: appointment.patientId,
+        userRole: 'PATIENT',
+        serviceName: 'appointment-service',
+        description: `Appointment booked: ${appointment.appointmentId}`,
+        metadata: {
+          appointmentId: appointment.appointmentId,
+          doctorId: appointment.doctorId,
+          eventAction: 'created',
+          appointment: appointment.toObject ? appointment.toObject() : appointment
+        }
+      });
+      kafka.publish(TOPICS.APPOINTMENT_EVENTS, event).catch(() => {});
+    } catch (err) {
+      console.warn('[kafka] Failed to create/publish booked event', err.message);
+    }
+
     return appointment;
   }
 
@@ -183,6 +209,26 @@ class AppointmentService {
     // 🔔 TRIGGER NOTIFICATION only if status changed
     if (oldStatus !== status) {
       await externalServices.sendNotification(appointment, 'status_updated');
+      // Publish Kafka event for status change
+      try {
+        const eventType = status === 'cancelled' ? EVENTS.APPOINTMENT_CANCELLED : EVENTS.APPOINTMENT_BOOKED;
+        const event = createEvent({
+          eventType,
+          userId: appointment.patientId,
+          userRole: 'PATIENT',
+          serviceName: 'appointment-service',
+          description: `Appointment ${status}: ${appointment.appointmentId}`,
+          metadata: {
+            appointmentId: appointment.appointmentId,
+            newStatus: status,
+            eventAction: status === 'cancelled' ? 'cancelled' : 'status_updated',
+            appointment: appointment.toObject ? appointment.toObject() : appointment
+          }
+        });
+        kafka.publish(TOPICS.APPOINTMENT_EVENTS, event).catch(() => {});
+      } catch (err) {
+        console.warn('[kafka] Failed to publish status change event', err.message);
+      }
     }
         
     return appointment;
@@ -215,6 +261,26 @@ class AppointmentService {
         
     // 🔔 TRIGGER NOTIFICATION for cancellation
     await externalServices.sendNotification(appointment, 'cancelled');
+        
+    // Publish Kafka event: appointment cancelled
+    try {
+      const event = createEvent({
+        eventType: EVENTS.APPOINTMENT_CANCELLED,
+        userId: appointment.patientId,
+        userRole: 'PATIENT',
+        serviceName: 'appointment-service',
+        description: `Appointment cancelled: ${appointment.appointmentId}`,
+        metadata: {
+          appointmentId: appointment.appointmentId,
+          reason,
+          eventAction: 'cancelled',
+          appointment: appointment.toObject ? appointment.toObject() : appointment
+        }
+      });
+      kafka.publish(TOPICS.APPOINTMENT_EVENTS, event).catch(() => {});
+    } catch (err) {
+      console.warn('[kafka] Failed to publish cancelled event', err.message);
+    }
         
     return appointment;
   }
@@ -265,6 +331,27 @@ class AppointmentService {
         
     // 🔔 TRIGGER NOTIFICATION for reschedule
     await externalServices.sendNotification(appointment, 'rescheduled');
+        
+    // Publish Kafka event: appointment rescheduled (reuse APPOINTMENT_BOOKED)
+    try {
+      const event = createEvent({
+        eventType: EVENTS.APPOINTMENT_BOOKED,
+        userId: appointment.patientId,
+        userRole: 'PATIENT',
+        serviceName: 'appointment-service',
+        description: `Appointment rescheduled: ${appointment.appointmentId}`,
+        metadata: {
+          appointmentId: appointment.appointmentId,
+          newDate: appointment.date,
+          newTimeSlot: appointment.timeSlot,
+          eventAction: 'rescheduled',
+          appointment: appointment.toObject ? appointment.toObject() : appointment
+        }
+      });
+      kafka.publish(TOPICS.APPOINTMENT_EVENTS, event).catch(() => {});
+    } catch (err) {
+      console.warn('[kafka] Failed to publish rescheduled event', err.message);
+    }
         
     return appointment;
   }

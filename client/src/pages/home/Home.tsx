@@ -57,6 +57,23 @@ const Home = () => {
             </CardContent>
           </Card>
 
+          {/* Appointments */}
+          <Card
+            className="cursor-pointer hover:shadow-lg transition"
+            onClick={() => navigate("/appointments")}
+          >
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-amber-100">
+                <svg className="h-6 w-6 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M8 7V3M16 7V3M3 11h18M5 21h14a2 2 0 0 0 2-2V8H3v11a2 2 0 0 0 2 2z" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold">Appointments</h2>
+              <p className="text-sm text-muted-foreground">View and manage scheduled appointments</p>
+              <Button variant="outline">Go to Appointments</Button>
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </div>

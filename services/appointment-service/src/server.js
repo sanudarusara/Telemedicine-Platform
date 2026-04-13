@@ -11,13 +11,16 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // ========== ENVIRONMENT DETECTION ==========
-const isDocker = process.env.DOCKER_ENV === 'true' || 
+// Accept both MONGODB_URI and MONGO_URI (some compose files use the latter)
+const isDocker = process.env.DOCKER_ENV === 'true' ||
          process.env.MONGODB_URI !== undefined ||
+         process.env.MONGO_URI !== undefined ||
          process.env.RUNNING_IN_DOCKER === 'true';
 
 let mongoURI;
-if (process.env.MONGODB_URI) {
-  mongoURI = process.env.MONGODB_URI;
+const envMongo = process.env.MONGODB_URI || process.env.MONGO_URI;
+if (envMongo) {
+  mongoURI = envMongo;
   console.log('📌 Using MongoDB URI from environment variable');
 } else if (isDocker) {
   mongoURI = 'mongodb://mongodb:27017/appointment-service';
@@ -50,9 +53,48 @@ connectDB();
 // ========== SECURITY MIDDLEWARE ==========
 app.use(helmet());
 
+// Manual CORS fallback: ensure responses include CORS headers for local dev
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174'
+  ];
+
+  if (process.env.NODE_ENV === 'production') {
+    if (origin && allowed.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+  } else {
+    // Development: allow any origin to simplify local testing
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
+  // Allow local dev clients (Vite default ports) and service ports
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

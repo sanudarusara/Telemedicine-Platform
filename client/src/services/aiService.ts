@@ -20,13 +20,11 @@ export type SymptomAnalysisResult = {
   aiResponse: string;
   suggestedCondition: string;
   severity: Severity;
+  possibleCauses?: string[];
+  recommendations?: string[];
+  recommendedDoctorType?: string;
   createdAt?: string;
   updatedAt?: string;
-};
-
-export type AnalyzeSymptomsResponse = {
-  message: string;
-  data: SymptomAnalysisResult;
 };
 
 const API_BASE =
@@ -34,7 +32,7 @@ const API_BASE =
 
 export async function analyzeSymptoms(
   payload: AnalyzeSymptomsPayload
-): Promise<AnalyzeSymptomsResponse> {
+): Promise<SymptomAnalysisResult> {
   const res = await fetch(`${API_BASE}/symptoms/analyze`, {
     method: "POST",
     headers: {

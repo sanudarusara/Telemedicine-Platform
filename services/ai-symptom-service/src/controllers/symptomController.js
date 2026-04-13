@@ -27,13 +27,12 @@ const submitSymptoms = async (req, res) => {
       aiResponse: result.aiResponse,
       suggestedCondition: result.suggestedCondition,
       severity: result.severity,
+      possibleCauses: result.possibleCauses,
+      recommendations: result.recommendations,
+      recommendedDoctorType: result.recommendedDoctorType,
     });
 
-    res.status(201).json({
-      message: "Symptom analysis completed",
-      disclaimer: "This is an AI-generated preliminary suggestion and not a medical diagnosis.",
-      data: symptomCheck,
-    });
+    res.status(201).json(symptomCheck);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

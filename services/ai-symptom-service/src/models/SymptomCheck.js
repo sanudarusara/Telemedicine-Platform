@@ -33,6 +33,13 @@ const symptomCheckSchema = new mongoose.Schema(
       enum: ["LOW", "MEDIUM", "HIGH"],
       default: "LOW",
     },
+    possibleCauses: [String],
+    recommendations: [String],
+
+    recommendedDoctorType: {
+      type: String,
+      default: "General Physician",
+    },
   },
   { timestamps: true }
 );

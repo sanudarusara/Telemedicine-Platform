@@ -190,7 +190,7 @@ export default function AiSymptomServicePage() {
                 additionalNotes: formData.additionalNotes || undefined,
             });
 
-            setResult(response.data);
+            setResult(response);
         } catch (err: unknown) {
             console.error("AI symptom analysis error:", err);
             setError(err instanceof Error ? err.message : "Something went wrong while analyzing symptoms.");
@@ -502,6 +502,8 @@ export default function AiSymptomServicePage() {
                                 </div>
                             ) : (
                                 <div className={`space-y-4 rounded-2xl border p-4 ${severityStyles.ring}`}>
+
+                                    {/* Header */}
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
                                             <p className="text-sm text-muted-foreground">
@@ -517,6 +519,7 @@ export default function AiSymptomServicePage() {
                                         </Badge>
                                     </div>
 
+                                    {/* AI Response */}
                                     <div className="rounded-2xl bg-background/80 p-4">
                                         <p className="text-sm text-muted-foreground">AI response</p>
                                         <p className="mt-2 text-sm leading-6">
@@ -524,6 +527,41 @@ export default function AiSymptomServicePage() {
                                         </p>
                                     </div>
 
+                                    {/* Recommended Doctor */}
+                                    {result.recommendedDoctorType && (
+                                        <div className="rounded-2xl border bg-background/70 p-4">
+                                            <p className="text-sm font-medium">Recommended Doctor Type</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {result.recommendedDoctorType}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Possible Causes */}
+                                    {result.possibleCauses?.length ? (
+                                        <div className="rounded-2xl border bg-background/70 p-4">
+                                            <p className="text-sm font-medium">Possible Causes</p>
+                                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                                                {result.possibleCauses.map((cause, index) => (
+                                                    <li key={index}>{cause}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Recommendations */}
+                                    {result.recommendations?.length ? (
+                                        <div className="rounded-2xl border bg-background/70 p-4">
+                                            <p className="text-sm font-medium">Recommendations</p>
+                                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                                                {result.recommendations.map((item, index) => (
+                                                    <li key={index}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Important Note */}
                                     <div className="rounded-2xl border bg-background/70 p-4">
                                         <p className="text-sm font-medium">Important note</p>
                                         <p className="mt-1 text-sm text-muted-foreground">
@@ -531,6 +569,7 @@ export default function AiSymptomServicePage() {
                                             treated as a final diagnosis.
                                         </p>
                                     </div>
+
                                 </div>
                             )}
                         </CardContent>

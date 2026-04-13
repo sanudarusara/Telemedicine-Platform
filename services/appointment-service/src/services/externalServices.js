@@ -6,9 +6,36 @@ class ExternalServices {
         this.doctorServiceURL = process.env.DOCTOR_SERVICE_URL || 'http://localhost:3003';
         this.notificationServiceURL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
     }
-
     async getPatientDetails(patientId) {
-        console.log(`[MOCK] Fetching patient details for ID: ${patientId}`);
+        // Try fetching the patient's profile via the API Gateway
+        // The patient-management-service expects gateway-injected headers (x-gateway, x-api-key, x-user-id, x-user-role)
+        try {
+            const url = `${this.patientServiceURL}/api/patients/profile`;
+            const headers = {
+                'Content-Type': 'application/json',
+                'x-gateway': 'true',
+                'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
+                'x-user-id': patientId,
+                'x-user-role': 'PATIENT',
+                // optionally include name/email via environment if you want to proxy a specific user
+                'x-user-email': process.env.INTERNAL_USER_EMAIL || undefined,
+                'x-user-name': process.env.INTERNAL_USER_NAME || undefined
+            };
+            // Optional bearer token if configured
+            if (process.env.INTERNAL_API_TOKEN) headers.Authorization = `Bearer ${process.env.INTERNAL_API_TOKEN}`;
+            console.log(`[EXTERNAL] Fetching patient ${patientId} from ${url} with headers x-user-id=${headers['x-user-id']} x-user-role=${headers['x-user-role']}`);
+            const res = await axios.get(url, { headers, timeout: 5000 });
+            if (res && res.data && res.data.data) {
+                return res.data.data;
+            } else {
+                console.warn(`[EXTERNAL] Patient service returned status ${res?.status} body: ${JSON.stringify(res?.data)}`);
+            }
+        } catch (err) {
+            console.warn(`[EXTERNAL] Failed to fetch patient from API: ${err?.response?.status} ${err?.response?.data ? JSON.stringify(err.response.data) : err.message}. Falling back to mock.`);
+        }
+
+        // Fallback mock data (keeps current behavior if patient API is unavailable)
+        console.log(`[MOCK] Returning fallback patient details for ID: ${patientId}`);
         const mockPatients = {
             'P001': { id: 'P001', name: 'John Doe', email: 'john@gmail.com', phone: '+94762047659' },
             'P002': { id: 'P002', name: 'Jane Smith', email: 'jane@example.com', phone: '+94729911398' },

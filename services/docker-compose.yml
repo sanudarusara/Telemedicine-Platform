@@ -148,6 +148,8 @@ services:
     restart: unless-stopped
     expose:
       - "5001"
+    ports:
+      - "5001:5001"
     env_file:
     - patient-management-service/.env
     environment:
@@ -194,6 +196,72 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: healthcare-notification-service
+    restart: unless-stopped
+    expose:
+      - "3003"
+    ports:
+      - "3003:3003"
+    env_file:
+      - notification-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      MONGO_URI: mongodb://mongodb:27017/notification-service
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  appointment-service:
+    build:
+      context: .
+      dockerfile: appointment-service/Dockerfile
+    container_name: healthcare-appointment-service
+    restart: unless-stopped
+    expose:
+      - "3001"
+    ports:
+      - "3001:3001"
+    env_file:
+      - appointment-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGO_URI: mongodb://mongodb:27017/appointment-management
+      PATIENT_SERVICE_URL: http://patient-service:5001
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3

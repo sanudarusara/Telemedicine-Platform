@@ -26,6 +26,11 @@ class UserRepository {
     return User.find().select('-password');
   }
 
+  async findDoctors(filter = {}) {
+    const query = Object.assign({}, filter, { role: 'DOCTOR' });
+    return User.find(query).select('-password');
+  }
+
   async delete(id) {
     return User.findByIdAndDelete(id);
   }

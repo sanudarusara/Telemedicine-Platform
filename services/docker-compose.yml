@@ -255,6 +255,7 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      DOCTOR_SERVICE_URL: http://auth-service:5000
     depends_on:
       mongodb:
         condition: service_healthy

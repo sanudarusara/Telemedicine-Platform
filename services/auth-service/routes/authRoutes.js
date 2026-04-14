@@ -20,6 +20,21 @@ router.post('/deactivate', validateGatewayRequest, authController.deactivateAcco
 // @route   GET /api/auth/users  (ADMIN)
 router.get('/users', validateGatewayRequest, authController.getAllUsers.bind(authController));
 
+// @route   GET /api/auth/doctors  (internal)
+router.get('/doctors', validateGatewayRequest, authController.getDoctors.bind(authController));
+
+// @route   GET /api/auth/doctors/:id  (internal)
+router.get('/doctors/:id', validateGatewayRequest, authController.getDoctorById.bind(authController));
+
+// @route   GET /api/auth/doctors/:id/slots
+router.get('/doctors/:id/slots', validateGatewayRequest, authController.getDoctorSlots.bind(authController));
+
+// @route   POST /api/auth/doctors/:id/slots/reserve
+router.post('/doctors/:id/slots/reserve', validateGatewayRequest, authController.reserveDoctorSlot.bind(authController));
+
+// @route   POST /api/auth/doctors/:id/slots/release
+router.post('/doctors/:id/slots/release', validateGatewayRequest, authController.releaseDoctorSlot.bind(authController));
+
 // @route   PATCH /api/auth/users/:userId/status  (ADMIN)
 router.patch('/users/:userId/status', validateGatewayRequest, authController.updateUserStatus.bind(authController));
 

@@ -60,6 +60,10 @@ class AppointmentService {
     if (!patient) {
       throw new Error('Patient not found');
     }
+    // Ensure required patient fields exist (some patient profiles store minimal data).
+    if (!patient.name) patient.name = patient.fullName || patient.userId || 'Patient';
+    if (!patient.email) patient.email = patient.emailAddress || '';
+    if (!patient.phone) patient.phone = patient.phone || '';
         
     const doctor = await externalServices.getDoctorDetails(appointmentData.doctorId);
     if (!doctor) {
@@ -74,6 +78,12 @@ class AppointmentService {
         
     if (!isAvailable) {
       throw new Error('Selected time slot is not available');
+    }
+
+    // Try to reserve the slot on doctor/auth-service (atomic). Fallbacks handled in externalServices.
+    const reserved = await externalServices.reserveDoctorSlot(appointmentData.doctorId, appointmentData.date, appointmentData.timeSlot);
+    if (!reserved) {
+      throw new Error('Failed to reserve selected time slot (already booked)');
     }
         
     const appointmentDate = new Date(appointmentData.date);
@@ -116,6 +126,21 @@ class AppointmentService {
         
     appointment.consultationLink = `https://video.healthcare.com/room/${appointment.appointmentId}`;
     await appointment.save();
+
+    // mark slot as booked in local Slot model if present (best-effort)
+    try {
+      const Slot = require('../models/Slot');
+      const startDate = new Date(appointment.date);
+      startDate.setHours(0,0,0,0);
+
+      await Slot.findOneAndUpdate(
+        { doctorId: appointment.doctorId, date: startDate, timeSlot: appointment.timeSlot },
+        { $set: { isBooked: true } },
+        { upsert: false }
+      );
+    } catch (err) {
+      console.warn('[Slots] Failed to mark local slot booked:', err.message);
+    }
         
     // 🔔 TRIGGER NOTIFICATION for appointment created
     await externalServices.sendNotification(appointment, 'created');
@@ -205,6 +230,24 @@ class AppointmentService {
     if (status === 'cancelled') appointment.cancellationReason = notes;
         
     await appointment.save();
+        
+    // release slot on cancellation (try auth-service then local)
+    if (status === 'cancelled') {
+      try {
+        await externalServices.releaseDoctorSlot(appointment.doctorId, appointment.date, appointment.timeSlot);
+      } catch (err) {
+        console.warn('[Slots] Failed to release slot on auth-service:', err.message);
+      }
+
+      try {
+        const Slot = require('../models/Slot');
+        const startDate = new Date(appointment.date);
+        startDate.setHours(0,0,0,0);
+        await Slot.findOneAndUpdate({ doctorId: appointment.doctorId, date: startDate, timeSlot: appointment.timeSlot }, { $set: { isBooked: false } });
+      } catch (err) {
+        console.warn('[Slots] Failed to release local slot on cancellation:', err.message);
+      }
+    }
         
     // 🔔 TRIGGER NOTIFICATION only if status changed
     if (oldStatus !== status) {
@@ -322,12 +365,42 @@ class AppointmentService {
     if (existingAppointment) {
       throw new Error('This time slot is already booked');
     }
-        
+
+    // capture old slot
+    const oldDate = appointment.date;
+    const oldTimeSlot = appointment.timeSlot;
+
+    // Reserve new slot atomically via auth-service (with local fallback)
+    const reserved = await externalServices.reserveDoctorSlot(appointment.doctorId, newDate, newTimeSlot);
+    if (!reserved) {
+      throw new Error('Failed to reserve the new time slot (already booked)');
+    }
+
+    // Update appointment record
     appointment.date = newDate;
     appointment.timeSlot = newTimeSlot;
     appointment.status = 'pending';
     appointment.notes = reason || appointment.notes;
     await appointment.save();
+
+    // Release old slot in auth-service (best-effort), and update local slot records
+    try {
+      await externalServices.releaseDoctorSlot(appointment.doctorId, oldDate, oldTimeSlot);
+    } catch (err) {
+      console.warn('[Slots] Failed to release old slot on auth-service during reschedule:', err.message);
+    }
+
+    try {
+      const Slot = require('../models/Slot');
+      const oldDateStart = new Date(oldDate);
+      oldDateStart.setHours(0,0,0,0);
+      await Slot.findOneAndUpdate({ doctorId: appointment.doctorId, date: oldDateStart, timeSlot: oldTimeSlot }, { $set: { isBooked: false } });
+      const newDateStart = new Date(newDate);
+      newDateStart.setHours(0,0,0,0);
+      await Slot.findOneAndUpdate({ doctorId: appointment.doctorId, date: newDateStart, timeSlot: newTimeSlot }, { $set: { isBooked: true } }, { upsert: false });
+    } catch (err) {
+      console.warn('[Slots] Failed to update local slots during reschedule:', err.message);
+    }
         
     // 🔔 TRIGGER NOTIFICATION for reschedule
     await externalServices.sendNotification(appointment, 'rescheduled');

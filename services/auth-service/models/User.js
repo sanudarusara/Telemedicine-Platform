@@ -32,6 +32,19 @@ const UserSchema = new mongoose.Schema(
       enum: ['PATIENT', 'DOCTOR', 'ADMIN'],
       default: 'PATIENT',
     },
+    // Optional doctor profile fields
+    specialty: {
+      type: String,
+      trim: true,
+    },
+    fee: {
+      type: Number,
+      default: 0,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: true,

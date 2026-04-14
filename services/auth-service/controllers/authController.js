@@ -253,6 +253,90 @@ class AuthController {
       return res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  /**
+   * GET /api/auth/doctors
+   * List doctors. Accessible to internal services via gateway headers.
+   */
+  async getDoctors(req, res) {
+    try {
+      const filters = {};
+      if (req.query.specialty) filters.specialty = req.query.specialty;
+      if (req.query.name) filters.name = new RegExp(req.query.name, 'i');
+
+      const doctors = await authService.getDoctors(filters);
+      return res.status(200).json({ success: true, count: doctors.length, data: doctors });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * GET /api/auth/doctors/:id
+   * Return single doctor by id.
+   */
+  async getDoctorById(req, res) {
+    try {
+      const { id } = req.params;
+      const doctor = await authService.getDoctorById(id);
+      return res.status(200).json({ success: true, data: doctor });
+    } catch (error) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * GET /api/auth/doctors/:id/slots
+   * Query doctor-owned slots (date optional)
+   */
+  async getDoctorSlots(req, res) {
+    try {
+      const { id } = req.params;
+      const { date } = req.query;
+      const slotService = require('../services/slotService');
+      const slots = await slotService.getSlotsForDoctor(id, date);
+      return res.status(200).json({ success: true, count: slots.length, data: slots });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * POST /api/auth/doctors/:id/slots/reserve
+   * Body: { date: 'YYYY-MM-DD', timeSlot: '09:00 AM' }
+   * Atomically reserve a slot.
+   */
+  async reserveDoctorSlot(req, res) {
+    try {
+      const { id } = req.params;
+      const { date, timeSlot } = req.body;
+      if (!date || !timeSlot) return res.status(400).json({ success: false, message: 'date and timeSlot are required' });
+      const slotService = require('../services/slotService');
+      const reserved = await slotService.reserve(id, date, timeSlot);
+      if (!reserved) return res.status(409).json({ success: false, message: 'Slot already reserved or not found' });
+      return res.status(200).json({ success: true, data: reserved });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * POST /api/auth/doctors/:id/slots/release
+   * Body: { date, timeSlot }
+   */
+  async releaseDoctorSlot(req, res) {
+    try {
+      const { id } = req.params;
+      const { date, timeSlot } = req.body;
+      if (!date || !timeSlot) return res.status(400).json({ success: false, message: 'date and timeSlot are required' });
+      const slotService = require('../services/slotService');
+      const released = await slotService.release(id, date, timeSlot);
+      if (!released) return res.status(404).json({ success: false, message: 'Slot not found' });
+      return res.status(200).json({ success: true, data: released });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
 }
 
 module.exports = new AuthController();

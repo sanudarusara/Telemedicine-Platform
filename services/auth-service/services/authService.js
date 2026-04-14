@@ -109,6 +109,16 @@ class AuthService {
     return userRepository.findAll();
   }
 
+  async getDoctors(filters = {}) {
+    return userRepository.findDoctors(filters);
+  }
+
+  async getDoctorById(id) {
+    const doctor = await userRepository.findById(id);
+    if (!doctor || doctor.role !== 'DOCTOR') throw new Error('Doctor not found');
+    return doctor;
+  }
+
   async updateUserStatus(userId, isActive) {
     const user = await userRepository.findById(userId);
     if (!user) throw new Error('User not found');

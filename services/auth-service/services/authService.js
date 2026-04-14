@@ -104,6 +104,53 @@ class AuthService {
       isActive: updated.isActive,
     };
   }
+
+  async getAllUsers() {
+    return userRepository.findAll();
+  }
+
+  async updateUserStatus(userId, isActive) {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new Error('User not found');
+    const updated = await userRepository.update(userId, { isActive });
+    return {
+      id: updated._id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      isActive: updated.isActive,
+    };
+  }
+
+  async updateUserRole(userId, role) {
+    const validRoles = ['PATIENT', 'DOCTOR', 'ADMIN'];
+    if (!validRoles.includes(role)) throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
+    const user = await userRepository.findById(userId);
+    if (!user) throw new Error('User not found');
+    const updated = await userRepository.update(userId, { role });
+    return {
+      id: updated._id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      isActive: updated.isActive,
+    };
+  }
+
+  async verifyDoctor(userId) {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new Error('User not found');
+    if (user.role !== 'DOCTOR') throw new Error('User is not registered as a DOCTOR');
+    const updated = await userRepository.update(userId, { isVerified: true });
+    return {
+      id: updated._id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      isActive: updated.isActive,
+      isVerified: updated.isVerified,
+    };
+  }
 }
 
 module.exports = new AuthService();

@@ -154,6 +154,105 @@ class AuthController {
       return res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  /**
+   * GET /api/auth/users  (ADMIN only)
+   * List all user accounts.
+   */
+  async getAllUsers(req, res) {
+    try {
+      const users = await authService.getAllUsers();
+      return res.status(200).json({ success: true, count: users.length, data: users });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * PATCH /api/auth/users/:userId/status  (ADMIN only)
+   * Activate or deactivate any user account.
+   * Body: { isActive: true | false }
+   */
+  async updateUserStatus(req, res) {
+    try {
+      const { userId } = req.params;
+      const { isActive } = req.body;
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'isActive must be a boolean' });
+      }
+      const updated = await authService.updateUserStatus(userId, isActive);
+
+      publishEvent(TOPICS.AUTH_EVENTS, createEvent({
+        eventType: isActive ? EVENTS.USER_REGISTERED : EVENTS.USER_DEACTIVATED,
+        userId: updated.id.toString(),
+        userRole: updated.role,
+        serviceName: 'auth-service',
+        description: `Admin ${isActive ? 'activated' : 'deactivated'} user: ${updated.email}`,
+        status: 'SUCCESS',
+        ipAddress: req.ip || '0.0.0.0',
+        metadata: { targetUserId: userId, adminId: req.user.id },
+      })).catch(() => {});
+
+      return res.status(200).json({ success: true, message: `User ${isActive ? 'activated' : 'deactivated'} successfully`, data: updated });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * PATCH /api/auth/users/:userId/role  (ADMIN only)
+   * Update a user's role (e.g. verify a DOCTOR registration).
+   * Body: { role: 'PATIENT' | 'DOCTOR' | 'ADMIN' }
+   */
+  async updateUserRole(req, res) {
+    try {
+      const { userId } = req.params;
+      const { role } = req.body;
+      const updated = await authService.updateUserRole(userId, role);
+
+      publishEvent(TOPICS.AUTH_EVENTS, createEvent({
+        eventType: EVENTS.ROLE_UPDATED,
+        userId: updated.id.toString(),
+        userRole: updated.role,
+        serviceName: 'auth-service',
+        description: `Admin updated role for user ${updated.email} to ${role}`,
+        status: 'SUCCESS',
+        ipAddress: req.ip || '0.0.0.0',
+        metadata: { targetUserId: userId, newRole: role, adminId: req.user.id },
+      })).catch(() => {});
+
+      return res.status(200).json({ success: true, message: 'User role updated successfully', data: updated });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * PATCH /api/auth/users/:userId/verify  (ADMIN only)
+   * Verify a doctor's registration — sets isVerified = true.
+   * Only applicable to users with role DOCTOR.
+   */
+  async verifyDoctor(req, res) {
+    try {
+      const { userId } = req.params;
+      const updated = await authService.verifyDoctor(userId);
+
+      publishEvent(TOPICS.AUTH_EVENTS, createEvent({
+        eventType: EVENTS.DOCTOR_VERIFIED,
+        userId: updated.id.toString(),
+        userRole: updated.role,
+        serviceName: 'auth-service',
+        description: `Admin verified doctor: ${updated.email}`,
+        status: 'SUCCESS',
+        ipAddress: req.ip || '0.0.0.0',
+        metadata: { targetUserId: userId, adminId: req.user.id },
+      })).catch(() => {});
+
+      return res.status(200).json({ success: true, message: 'Doctor verified successfully', data: updated });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
 }
 
 module.exports = new AuthController();

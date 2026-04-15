@@ -89,9 +89,9 @@ const Home = () => {
                   <path d="M21 10a9 9 0 11-18 0 9 9 0 0118 0zM8 13l2.5-3L14 15" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
                 </svg>
               </div>
-              <h2 className="text-lg font-semibold">Consultation</h2>
+              <h2 className="text-lg font-semibold">Doctor Login</h2>
               <p className="text-sm text-muted-foreground">Search doctors and book consultations</p>
-              <Button variant="outline">Book Consultation</Button>
+              <Button variant="outline">Doctor Login</Button>
             </CardContent>
           </Card>
         </div>

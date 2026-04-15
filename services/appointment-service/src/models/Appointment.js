@@ -64,6 +64,14 @@ const appointmentSchema = new mongoose.Schema({
   notes: {
     type: String
   },
+  reports: [{
+    filename: String,
+    originalName: String,
+    mimeType: String,
+    size: Number,
+    path: String,
+    uploadedAt: { type: Date, default: Date.now }
+  }],
   cancellationReason: {
     type: String
   },

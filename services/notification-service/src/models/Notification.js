@@ -1,3 +1,4 @@
+// services/notification-service/src/models/Notification.js
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
@@ -8,7 +9,8 @@ const notificationSchema = new mongoose.Schema({
   },
   userId: {
     type: String,
-    required: true
+    required: true,
+    index: true
   },
   userType: {
     type: String,
@@ -31,6 +33,22 @@ const notificationSchema = new mongoose.Schema({
   },
   htmlContent: String,
   appointmentId: String,
+  appointmentStatus: {
+    type: String,
+    enum: ['pending', 'confirmed', 'cancelled', 'completed', 'rescheduled']
+  },
+  appointmentSnapshot: {
+    doctorName: String,
+    patientName: String,
+    date: Date,
+    timeSlot: String,
+    status: String,
+    clinic: String
+  },
+  read: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: String,
     enum: ['pending', 'sent', 'failed'],
@@ -40,7 +58,8 @@ const notificationSchema = new mongoose.Schema({
   sentAt: Date,
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   }
 });
 

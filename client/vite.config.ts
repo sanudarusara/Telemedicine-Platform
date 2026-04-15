@@ -1,12 +1,13 @@
+// client/vite.config.js
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
-// Allow overriding backend target via APPOINTMENT_API_URL env var (useful for dev)
 const DEFAULT_BACKEND = 'http://localhost:3001';
 const PROXY_TARGET = process.env.APPOINTMENT_API_URL || DEFAULT_BACKEND;
+const GATEWAY_PROXY = process.env.VITE_API_GATEWAY_URL || process.env.API_GATEWAY_URL || '';
+const NOTIFICATION_SERVICE_URL = process.env.VITE_NOTIFICATION_SERVICE_URL || 'http://localhost:3003';
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -15,12 +16,18 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
-    // Proxy API requests to backend during development so fetch("/api/...") works
     proxy: {
       '/api': {
-        target: PROXY_TARGET,
+        target: GATEWAY_PROXY || PROXY_TARGET,
         changeOrigin: true,
         secure: false,
+      },
+      // Add notification service proxy
+      '/notifications-api': {
+        target: NOTIFICATION_SERVICE_URL,
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/notifications-api/, '/api'),
       },
     },
   },

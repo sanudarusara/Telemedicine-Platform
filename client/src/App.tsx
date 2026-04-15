@@ -9,7 +9,6 @@ import Home from "./pages/home/Home";
 import DummyPayment from "./pages/payment/DummyPayment";
 import AiSymptomServicePage from "./pages/ai-service/AiSymptomServicePage";
 import AppointmentsPage from "./pages/appointments/AppointmentsPage";
-import AppointmentDetail from "./pages/appointments/AppointmentDetail";
 
 // New lovable pages
 import Login from "./pages/Login.jsx";
@@ -42,7 +41,6 @@ const App = () => (
           <Route path="/ai-symptom-service" element={<AiSymptomServicePage />} />
           <Route path="/payment" element={<DummyPayment />} />
           <Route path="/appointments" element={<AppointmentsPage />} />
-          <Route path="/appointments/:id" element={<AppointmentDetail />} />
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/cancel" element={<PaymentCancel />} />
 

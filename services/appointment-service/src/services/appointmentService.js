@@ -1,3 +1,4 @@
+// services/appointment-service/src/services/appointmentService.js
 const Appointment = require('../models/Appointment');
 const externalServices = require('./externalServices');
 const { v4: uuidv4 } = require('uuid');
@@ -9,9 +10,6 @@ const EVENTS = require('../../shared/kafka/events');
 const kafka = require('../kafka');
 
 class AppointmentService {
-  /**
-   * Search for doctors by specialty
-   */
   async searchDoctors(specialty, name, date) {
     const doctors = await externalServices.searchDoctors(specialty, name, date);
         
@@ -24,9 +22,6 @@ class AppointmentService {
     return doctors;
   }
 
-  /**
-   * Get available time slots for a specific doctor
-   */
   async getAvailableSlots(doctorId, date) {
     const doctor = await externalServices.getDoctorDetails(doctorId);
     if (!doctor) {
@@ -52,23 +47,35 @@ class AppointmentService {
     return availableSlots;
   }
 
-  /**
-   * Book a new appointment
-   */
   async bookAppointment(appointmentData) {
+    // Get patient details - ENSURE we get the name properly
     const patient = await externalServices.getPatientDetails(appointmentData.patientId);
     if (!patient) {
       throw new Error('Patient not found');
     }
-    // Ensure required patient fields exist (some patient profiles store minimal data).
-    if (!patient.name) patient.name = patient.fullName || patient.userId || 'Patient';
-    if (!patient.email) patient.email = patient.emailAddress || '';
-    if (!patient.phone) patient.phone = patient.phone || '';
+    
+    // Extract patient name properly
+    let patientName = patient.name || patient.fullName || patient.full_name || patient.displayName;
+    if (!patientName || patientName === patient.id || patientName === appointmentData.patientId) {
+      patientName = `Patient ${appointmentData.patientId.slice(-6)}`;
+    }
+    
+    const patientEmail = patient.email || patient.emailAddress || '';
+    const patientPhone = patient.phone || patient.mobile || '';
+    
+    console.log(`[BOOKING] Patient: ${patientName} (${appointmentData.patientId})`);
         
     const doctor = await externalServices.getDoctorDetails(appointmentData.doctorId);
     if (!doctor) {
       throw new Error('Doctor not found');
     }
+    
+    let doctorName = doctor.name || doctor.fullName || doctor.full_name;
+    if (!doctorName) {
+      doctorName = `Dr. ${doctor.doctorId || appointmentData.doctorId.slice(-6)}`;
+    }
+    
+    console.log(`[BOOKING] Doctor: ${doctorName} (${appointmentData.doctorId})`);
         
     const isAvailable = await externalServices.checkAvailability(
       appointmentData.doctorId,
@@ -80,7 +87,6 @@ class AppointmentService {
       throw new Error('Selected time slot is not available');
     }
 
-    // Try to reserve the slot on doctor/auth-service (atomic). Fallbacks handled in externalServices.
     const reserved = await externalServices.reserveDoctorSlot(appointmentData.doctorId, appointmentData.date, appointmentData.timeSlot);
     if (!reserved) {
       throw new Error('Failed to reserve selected time slot (already booked)');
@@ -100,39 +106,54 @@ class AppointmentService {
       throw new Error('This time slot is already booked');
     }
         
-    // Create appointment with email and phone fields
+    // Create appointment with proper names
     const appointment = new Appointment({
       appointmentId: uuidv4(),
       patientId: appointmentData.patientId,
+      patientName: patientName,
+      patientEmail: patientEmail,
+      patientPhone: patientPhone,
       doctorId: appointmentData.doctorId,
-      doctorName: doctor.name,
-      patientName: patient.name,
-      patientEmail: patient.email,
-      patientPhone: patient.phone,
-      doctorEmail: doctor.email,
-      doctorPhone: doctor.phone,
-      specialty: doctor.specialty,
+      doctorName: doctorName,
+      doctorEmail: doctor.email || '',
+      doctorPhone: doctor.phone || '',
+      specialty: doctor.specialty || 'General Medicine',
       date: appointmentData.date,
       timeSlot: appointmentData.timeSlot,
       consultationType: appointmentData.consultationType || 'video',
-      symptoms: appointmentData.symptoms,
-      notes: appointmentData.notes,
+      symptoms: appointmentData.symptoms || '',
+      notes: appointmentData.notes || '',
       paymentAmount: doctor.fee || appointmentData.paymentAmount || 1500,
       status: 'pending',
       paymentStatus: 'pending'
     });
         
     await appointment.save();
+
+    if (appointmentData.reportFile) {
+      try {
+        appointment.reports = appointment.reports || [];
+        appointment.reports.push({
+          filename: appointmentData.reportFile.filename,
+          originalName: appointmentData.reportFile.originalName || appointmentData.reportFile.originalname,
+          mimeType: appointmentData.reportFile.mimeType || appointmentData.reportFile.mimetype,
+          size: appointmentData.reportFile.size,
+          path: appointmentData.reportFile.path,
+          uploadedAt: new Date()
+        });
+        await appointment.save();
+      } catch (err) {
+        console.warn('[Reports] Failed to attach report metadata:', err.message);
+      }
+    }
         
     appointment.consultationLink = `https://video.healthcare.com/room/${appointment.appointmentId}`;
     await appointment.save();
 
-    // mark slot as booked in local Slot model if present (best-effort)
     try {
       const Slot = require('../models/Slot');
       const startDate = new Date(appointment.date);
       startDate.setHours(0,0,0,0);
-
       await Slot.findOneAndUpdate(
         { doctorId: appointment.doctorId, date: startDate, timeSlot: appointment.timeSlot },
         { $set: { isBooked: true } },
@@ -142,10 +163,9 @@ class AppointmentService {
       console.warn('[Slots] Failed to mark local slot booked:', err.message);
     }
         
-    // 🔔 TRIGGER NOTIFICATION for appointment created
+    // Send notification with full appointment data
     await externalServices.sendNotification(appointment, 'created');
 
-    // Publish Kafka event: appointment booked
     try {
       const event = createEvent({
         eventType: EVENTS.APPOINTMENT_BOOKED,
@@ -168,9 +188,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Get all appointments (with filters)
-   */
   async getAllAppointments(filters = {}) {
     const query = {};
         
@@ -181,9 +198,6 @@ class AppointmentService {
     return await Appointment.find(query).sort({ date: -1 });
   }
 
-  /**
-   * Get appointment by ID
-   */
   async getAppointmentById(id) {
     const appointment = await Appointment.findById(id);
     if (!appointment) {
@@ -192,9 +206,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Get appointment by appointmentId (UUID)
-   */
   async getAppointmentByAppointmentId(appointmentId) {
     const appointment = await Appointment.findOne({ appointmentId });
     if (!appointment) {
@@ -203,9 +214,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Update appointment status
-   */
   async updateAppointmentStatus(id, status, notes = '') {
     const appointment = await Appointment.findById(id);
     if (!appointment) {
@@ -231,7 +239,6 @@ class AppointmentService {
         
     await appointment.save();
         
-    // release slot on cancellation (try auth-service then local)
     if (status === 'cancelled') {
       try {
         await externalServices.releaseDoctorSlot(appointment.doctorId, appointment.date, appointment.timeSlot);
@@ -249,10 +256,9 @@ class AppointmentService {
       }
     }
         
-    // 🔔 TRIGGER NOTIFICATION only if status changed
     if (oldStatus !== status) {
-      await externalServices.sendNotification(appointment, 'status_updated');
-      // Publish Kafka event for status change
+      await externalServices.sendNotification(appointment, status);
+      
       try {
         const eventType = status === 'cancelled' ? EVENTS.APPOINTMENT_CANCELLED : EVENTS.APPOINTMENT_BOOKED;
         const event = createEvent({
@@ -277,9 +283,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Cancel appointment
-   */
   async cancelAppointment(id, reason = '') {
     const appointment = await Appointment.findById(id);
     if (!appointment) {
@@ -302,10 +305,8 @@ class AppointmentService {
     appointment.cancellationReason = reason;
     await appointment.save();
         
-    // 🔔 TRIGGER NOTIFICATION for cancellation
     await externalServices.sendNotification(appointment, 'cancelled');
         
-    // Publish Kafka event: appointment cancelled
     try {
       const event = createEvent({
         eventType: EVENTS.APPOINTMENT_CANCELLED,
@@ -328,9 +329,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Reschedule appointment
-   */
   async rescheduleAppointment(id, newDate, newTimeSlot, reason = '') {
     const appointment = await Appointment.findById(id);
     if (!appointment) {
@@ -366,24 +364,20 @@ class AppointmentService {
       throw new Error('This time slot is already booked');
     }
 
-    // capture old slot
     const oldDate = appointment.date;
     const oldTimeSlot = appointment.timeSlot;
 
-    // Reserve new slot atomically via auth-service (with local fallback)
     const reserved = await externalServices.reserveDoctorSlot(appointment.doctorId, newDate, newTimeSlot);
     if (!reserved) {
       throw new Error('Failed to reserve the new time slot (already booked)');
     }
 
-    // Update appointment record
     appointment.date = newDate;
     appointment.timeSlot = newTimeSlot;
     appointment.status = 'pending';
     appointment.notes = reason || appointment.notes;
     await appointment.save();
 
-    // Release old slot in auth-service (best-effort), and update local slot records
     try {
       await externalServices.releaseDoctorSlot(appointment.doctorId, oldDate, oldTimeSlot);
     } catch (err) {
@@ -402,10 +396,8 @@ class AppointmentService {
       console.warn('[Slots] Failed to update local slots during reschedule:', err.message);
     }
         
-    // 🔔 TRIGGER NOTIFICATION for reschedule
     await externalServices.sendNotification(appointment, 'rescheduled');
         
-    // Publish Kafka event: appointment rescheduled (reuse APPOINTMENT_BOOKED)
     try {
       const event = createEvent({
         eventType: EVENTS.APPOINTMENT_BOOKED,
@@ -429,9 +421,6 @@ class AppointmentService {
     return appointment;
   }
 
-  /**
-   * Get upcoming appointments for patient
-   */
   async getUpcomingAppointments(patientId) {
     const now = new Date();
         
@@ -442,9 +431,6 @@ class AppointmentService {
     }).sort({ date: 1 });
   }
 
-  /**
-   * Get pending appointments for doctor (needs confirmation)
-   */
   async getPendingAppointmentsForDoctor(doctorId) {
     return await Appointment.find({
       doctorId: doctorId,

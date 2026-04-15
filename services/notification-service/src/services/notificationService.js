@@ -1,129 +1,123 @@
+// services/notification-service/src/services/notificationService.js
 const { v4: uuidv4 } = require('uuid');
 const Notification = require('../models/Notification');
-const emailService = require('./emailService');
-const smsService = require('./smsService');
-const whatsappService = require('./whatsappService');
 
 class NotificationService {
-  async sendNotification(notificationData) {
-    const notification = new Notification({
-      notificationId: uuidv4(),
-      ...notificationData,
-      status: 'pending'
-    });
-        
-    await notification.save();
-        
-    let result;
-    if (notificationData.type === 'email') {
-      result = await emailService.sendEmail(
-        notificationData.recipient.email,
-        notificationData.subject,
-        notificationData.htmlContent || notificationData.message,
-        notificationData.message
-      );
-    } else if (notificationData.type === 'sms') {
-      result = await smsService.sendSMS(
-        notificationData.recipient.phone,
-        notificationData.message
-      );
-    } else if (notificationData.type === 'whatsapp') {
-      result = await whatsappService.sendWhatsApp(
-        notificationData.recipient.phone,
-        notificationData.message
-      );
-    }
-        
-    notification.status = result.success ? 'sent' : 'failed';
-    if (result.success) notification.sentAt = new Date();
-    if (result.error) notification.error = result.error;
-        
-    await notification.save();
-        
-    return {
-      success: result.success,
-      notificationId: notification.notificationId,
-      ...result
-    };
+  constructor() {
+    this.appointmentServiceURL = process.env.APPOINTMENT_SERVICE_URL || 'http://appointment-service:3001';
   }
 
   async sendAppointmentNotification(appointment, eventType, userType) {
     const isPatient = userType === 'patient';
-    const recipient = {
-      id: isPatient ? appointment.patientId : appointment.doctorId,
-      email: isPatient ? appointment.patientEmail : appointment.doctorEmail,
-      phone: isPatient ? appointment.patientPhone : appointment.doctorPhone
-    };
+    
+    // Use the actual names from appointment data
+    const patientName = appointment.patientName || 'Patient';
+    const doctorName = appointment.doctorName || 'Doctor';
+    
+    // Only create notification for the specific user type
+    const recipientId = isPatient ? appointment.patientId : appointment.doctorId;
+    const recipientName = isPatient ? patientName : doctorName;
+    const otherPartyName = isPatient ? doctorName : patientName;
+    
+    const appointmentDate = new Date(appointment.date);
+    const formattedDate = appointmentDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const formattedTime = appointment.timeSlot || appointmentDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    let subject, message;
+    
+    switch(eventType) {
+      case 'created':
+        subject = `Appointment Confirmed - ${formattedDate} with ${otherPartyName}`;
+        message = `Dear ${recipientName},\n\nYour appointment has been successfully booked!\n\n📋 Appointment Details:\n• ${isPatient ? 'Doctor' : 'Patient'}: ${otherPartyName}\n• Specialty: ${appointment.specialty || 'General Medicine'}\n• Date: ${formattedDate}\n• Time: ${formattedTime}\n• Type: ${appointment.consultationType === 'video' ? 'Video Consultation' : 'In-Clinic Visit'}\n${appointment.symptoms ? `• Symptoms: ${appointment.symptoms}\n` : ''}• Status: ${appointment.status}\n\nThank you for choosing our healthcare platform!`;
+        break;
         
-    let subject, message, htmlContent, whatsappMessage, smsMessage;
+      case 'confirmed':
+        subject = `Appointment Confirmed - ${formattedDate}`;
+        message = `Dear ${recipientName},\n\nYour appointment has been CONFIRMED!\n\n📋 Appointment Details:\n• ${isPatient ? 'Doctor' : 'Patient'}: ${otherPartyName}\n• Date: ${formattedDate}\n• Time: ${formattedTime}\n• Status: CONFIRMED ✅\n\nPlease arrive 10 minutes early.`;
+        break;
         
-    if (eventType === 'created') {
-      const template = emailService.getAppointmentCreatedTemplate(appointment, userType);
-      subject = template.subject;
-      htmlContent = template.html;
-      message = emailService.stripHtml(htmlContent);
-      whatsappMessage = whatsappService.getAppointmentCreatedMessage(appointment, userType);
-      smsMessage = smsService.getAppointmentCreatedSMS(appointment, userType);
-    } else {
-      const template = emailService.getAppointmentStatusUpdateTemplate(appointment, userType, appointment.status);
-      subject = template.subject;
-      htmlContent = template.html;
-      message = emailService.stripHtml(htmlContent);
-      whatsappMessage = whatsappService.getAppointmentStatusUpdateMessage(appointment, userType, appointment.status);
-      smsMessage = smsService.getAppointmentStatusUpdateSMS(appointment, userType, appointment.status);
+      case 'cancelled':
+        subject = `Appointment Cancelled - ${formattedDate}`;
+        message = `Dear ${recipientName},\n\nYour appointment has been CANCELLED.\n\n📋 Appointment Details:\n• ${isPatient ? 'Doctor' : 'Patient'}: ${otherPartyName}\n• Date: ${formattedDate}\n• Time: ${formattedTime}\n• Status: CANCELLED ❌\n\nTo book a new appointment, please log in to your account.`;
+        break;
+        
+      case 'rescheduled':
+        subject = `Appointment Rescheduled - ${formattedDate}`;
+        message = `Dear ${recipientName},\n\nYour appointment has been RESCHEDULED.\n\n📋 New Appointment Details:\n• ${isPatient ? 'Doctor' : 'Patient'}: ${otherPartyName}\n• New Date: ${formattedDate}\n• New Time: ${formattedTime}\n• Type: ${appointment.consultationType === 'video' ? 'Video Consultation' : 'In-Clinic Visit'}\n• Status: ${appointment.status}\n\nThank you for updating your schedule!`;
+        break;
+        
+      default:
+        subject = `Appointment Update - ${formattedDate}`;
+        message = `Dear ${recipientName},\n\nYour appointment status has been updated to: ${appointment.status.toUpperCase()}\n\n${isPatient ? 'Doctor' : 'Patient'}: ${otherPartyName}\nDate: ${formattedDate}\nTime: ${formattedTime}`;
     }
-        
-    // Send Email
-    const emailResult = await this.sendNotification({
-      userId: recipient.id,
+    
+    // Save notification ONLY for this specific user
+    const notification = new Notification({
+      notificationId: uuidv4(),
+      userId: recipientId,
       userType: userType,
-      type: 'email',
-      recipient: { email: recipient.email },
+      type: 'push',
       subject: subject,
       message: message,
-      htmlContent: htmlContent,
-      appointmentId: appointment.appointmentId
+      appointmentId: appointment.appointmentId,
+      appointmentStatus: appointment.status,
+      read: false,
+      status: 'sent',
+      sentAt: new Date(),
+      createdAt: new Date(),
+      appointmentSnapshot: {
+        doctorName: doctorName,
+        patientName: patientName,
+        date: appointment.date,
+        timeSlot: appointment.timeSlot,
+        status: appointment.status,
+        specialty: appointment.specialty,
+        clinic: appointment.clinic || 'Healthcare Center'
+      }
     });
-        
-    // Send WhatsApp (preferred)
-    const whatsappResult = await this.sendNotification({
-      userId: recipient.id,
-      userType: userType,
-      type: 'whatsapp',
-      recipient: { phone: recipient.phone },
-      message: whatsappMessage,
-      appointmentId: appointment.appointmentId
-    });
-        
-    // Send SMS (fallback)
-    const smsResult = await this.sendNotification({
-      userId: recipient.id,
-      userType: userType,
-      type: 'sms',
-      recipient: { phone: recipient.phone },
-      message: smsMessage,
-      appointmentId: appointment.appointmentId
-    });
-        
-    return { email: emailResult, whatsapp: whatsappResult, sms: smsResult };
+    
+    await notification.save();
+    console.log(`[NOTIFICATION] Created ${eventType} notification for ${userType}: ${recipientName} (${recipientId})`);
+    
+    return { success: true, notificationId: notification.notificationId };
   }
 
   async sendAppointmentNotifications(appointment, eventType) {
+    if (!appointment) return { error: 'Appointment not found' };
+    
+    // Send separate notifications to patient and doctor
     const patientResult = await this.sendAppointmentNotification(appointment, eventType, 'patient');
     const doctorResult = await this.sendAppointmentNotification(appointment, eventType, 'doctor');
-        
+    
     return { patient: patientResult, doctor: doctorResult };
   }
 
   async getNotifications(userId, limit = 50, offset = 0) {
+    // Only return notifications for this specific user
     return await Notification.find({ userId })
       .sort({ createdAt: -1 })
-      .skip(offset)
-      .limit(limit);
+      .skip(parseInt(offset))
+      .limit(parseInt(limit));
   }
 
   async getNotificationById(notificationId) {
     return await Notification.findOne({ notificationId });
+  }
+
+  async markAsRead(notificationId, read = true) {
+    const notification = await Notification.findOne({ notificationId });
+    if (!notification) throw new Error('Notification not found');
+    notification.read = !!read;
+    await notification.save();
+    return notification;
   }
 
   async getFailedNotifications() {
@@ -133,11 +127,11 @@ class NotificationService {
   async retryFailedNotification(notificationId) {
     const notification = await Notification.findOne({ notificationId });
     if (!notification) throw new Error('Notification not found');
-        
+    
     notification.status = 'pending';
     notification.error = null;
     await notification.save();
-        
+    
     return await this.sendNotification(notification.toObject());
   }
 }

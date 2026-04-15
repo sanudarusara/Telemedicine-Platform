@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, FileText, Video, Clock, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAppointments } from "@/services/appointmentsService";
 
 const PatientDashboard = () => {
@@ -11,35 +11,56 @@ const PatientDashboard = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const user = useMemo(() => {
+  const [user, setUser] = useState(() => {
     try {
       const raw = localStorage.getItem("user");
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
     }
-  }, []);
+  });
+
+  const fetchAppointments = useCallback(async () => {
+    if (!user) {
+      setAppointments([]);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const patientId = user._id || user.id || user.patientId || user.userId || null;
+      const data = await getAppointments({ patientId });
+      setAppointments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e?.message || "Failed to load appointments");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    async function fetchAppointments() {
-      if (!user) return;
-      setLoading(true);
-      setError("");
-      try {
-        // try common id fields
-        const patientId = user._id || user.id || user.patientId || user.userId || null;
-        const data = await getAppointments({ patientId });
-        setAppointments(Array.isArray(data) ? data : []);
-      } catch (e) {
-        setError(e?.message || "Failed to load appointments");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchAppointments();
-  }, [user]);
+    const interval = setInterval(() => {
+      fetchAppointments();
+    }, 30000); // refresh every 30s
+
+    const onStorage = (e) => {
+      if (e.key === "user") {
+        try {
+          setUser(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch (_) {
+          setUser(null);
+        }
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [fetchAppointments]);
 
   const upcomingCount = appointments.filter((a) => {
     const status = (a.status || "").toLowerCase();
@@ -95,7 +116,10 @@ const PatientDashboard = () => {
           <Card className="lg:col-span-2 border-border/60">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-base font-semibold">My Appointments</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/appointments')}>
+              <Button variant="ghost" size="sm" onClick={() => {
+                if (user) navigate('/appointments');
+                else navigate('/patient-login');
+              }}>
                 View All
               </Button>
             </CardHeader>
@@ -132,11 +156,17 @@ const PatientDashboard = () => {
               <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start gap-3 h-11" onClick={() => navigate('/appointments/consultation')}>
+              <Button variant="outline" className="w-full justify-start gap-3 h-11" onClick={() => {
+                if (user) navigate('/appointments/consultation');
+                else navigate('/patient-login');
+              }}>
                 <CalendarDays className="w-4 h-4 text-primary" />
                 Book Consultation
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3 h-11" onClick={() => navigate('/appointments')}>
+              <Button variant="outline" className="w-full justify-start gap-3 h-11" onClick={() => {
+                if (user) navigate('/appointments');
+                else navigate('/patient-login');
+              }}>
                 <FileText className="w-4 h-4 text-accent" />
                 My Appointments
               </Button>

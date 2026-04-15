@@ -58,6 +58,16 @@ class NotificationController {
     }
   }
 
+  async markAsRead(req, res, next) {
+    try {
+      const read = req.body && typeof req.body.read !== 'undefined' ? !!req.body.read : true;
+      const result = await notificationService.markAsRead(req.params.id, read);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async healthCheck(req, res) {
     res.json({
       status: 'OK',

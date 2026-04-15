@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: doctor-config
+data:
+  PORT: "8081"
+  CLIENT_URL: "http://localhost:30082"

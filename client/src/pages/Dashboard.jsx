@@ -1,0 +1,137 @@
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CalendarDays, Users, FileText, Video, Clock, TrendingUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+const stats = [
+  { label: "Today's Appointments", value: "8", icon: CalendarDays, color: "text-primary" },
+  { label: "Total Patients", value: "142", icon: Users, color: "text-accent" },
+  { label: "Prescriptions", value: "36", icon: FileText, color: "text-warning" },
+  { label: "Video Consults", value: "3", icon: Video, color: "text-success" },
+];
+
+const upcomingAppointments = [
+  { id: 1, patient: "Sarah Johnson", time: "09:00 AM", type: "Check-up", status: "confirmed" },
+  { id: 2, patient: "Michael Chen", time: "10:30 AM", type: "Follow-up", status: "pending" },
+  { id: 3, patient: "Emily Davis", time: "02:00 PM", type: "Consultation", status: "confirmed" },
+  { id: 4, patient: "Robert Wilson", time: "03:30 PM", type: "Video Call", status: "pending" },
+];
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+
+  return (
+    <DashboardLayout title="Dashboard">
+      <div className="space-y-6">
+        {/* Greeting */}
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Good morning, Dr. Smith</h2>
+          <p className="text-muted-foreground text-sm mt-1">Here's your overview for today</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat) => (
+            <Card key={stat.label} className="border-border/60 hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{stat.label}</p>
+                    <p className="text-3xl font-bold text-foreground mt-1">{stat.value}</p>
+                  </div>
+                  <div className={`w-11 h-11 rounded-xl bg-muted flex items-center justify-center ${stat.color}`}>
+                    <stat.icon className="w-5 h-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Upcoming Appointments */}
+          <Card className="lg:col-span-2 border-border/60">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base font-semibold">Upcoming Appointments</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/appointments")}>
+                View All
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {upcomingAppointments.map((apt) => (
+                <div
+                  key={apt.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                      {apt.patient.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{apt.patient}</p>
+                      <p className="text-xs text-muted-foreground">{apt.type}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {apt.time}
+                    </p>
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        apt.status === "confirmed"
+                          ? "bg-success/10 text-success"
+                          : "bg-warning/10 text-warning"
+                      }`}
+                    >
+                      {apt.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card className="border-border/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-3 h-11"
+                onClick={() => navigate("/appointments")}
+              >
+                <CalendarDays className="w-4 h-4 text-primary" />
+                Manage Appointments
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-3 h-11"
+                onClick={() => navigate("/prescriptions")}
+              >
+                <FileText className="w-4 h-4 text-accent" />
+                Create Prescription
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-3 h-11"
+                onClick={() => navigate("/video-consultation")}
+              >
+                <Video className="w-4 h-4 text-success" />
+                Start Video Consult
+              </Button>
+              <Button variant="outline" className="w-full justify-start gap-3 h-11">
+                <TrendingUp className="w-4 h-4 text-warning" />
+                View Reports
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default Dashboard;

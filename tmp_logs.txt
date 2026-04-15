@@ -1,0 +1,20 @@
+﻿[kafka] Brokers configured: kafka:29092
+{"level":"WARN","timestamp":"2026-04-15T20:34:40.171Z","logger":"kafkajs","message":"KafkaJS v2.0.0 switched default partitioner. To retain the same partitioning behavior as in previous versions, create the producer with the option \"createPartitioner: Partitioners.LegacyPartitioner\". See the migration guide at https://kafka.js.org/docs/migration-guide-v2.0.0#producer-new-default-partitioner for details. Silence this warning by setting the environment variable \"KAFKAJS_NO_PARTITIONER_WARNING=1\""}
+­ƒôî Using MongoDB URI from environment variable
+
+Appointment Service running on port 3001
+Ô£à MongoDB Connected: mongodb
+­ƒôè Database Name: appointment-management
+[kafka] Producer connected
+[EXTERNAL] Attempting to fetch doctor 69dfeda0a557fd7f763e84bf from auth via gateway http://api-gateway:5400/api/auth/doctors/69dfeda0a557fd7f763e84bf
+[EXTERNAL] Gateway auth-service doctor fetch failed: Request failed with status code 404
+[EXTERNAL] Fetching doctor 69dfeda0a557fd7f763e84bf from http://auth-service:5000/api/auth/doctors/69dfeda0a557fd7f763e84bf
+[EXTERNAL] Failed to fetch doctor from service: 404 {"success":false,"message":"Doctor not found"}. Falling back to mock.
+[MOCK] Returning fallback doctor details for ID: 69dfeda0a557fd7f763e84bf
+[EXTERNAL] Failed to fetch slots from service: Request failed with status code 404. Falling back to local Slot model.
+[EXTERNAL] Attempting to fetch doctor 69dfeda0a557fd7f763e84bf from auth via gateway http://api-gateway:5400/api/auth/doctors/69dfeda0a557fd7f763e84bf
+[EXTERNAL] Fetching doctor 69dfeda0a557fd7f763e84bf from http://auth-service:5000/api/auth/doctors/69dfeda0a557fd7f763e84bf
+[EXTERNAL] Gateway auth-service doctor fetch failed: Request failed with status code 404
+[EXTERNAL] Failed to fetch doctor from service: 404 {"success":false,"message":"Doctor not found"}. Falling back to mock.
+[MOCK] Returning fallback doctor details for ID: 69dfeda0a557fd7f763e84bf
+[EXTERNAL] Failed to fetch slots from service: Request failed with status code 404. Falling back to local Slot model.

@@ -30,7 +30,8 @@ class AuthService {
    * Patient profile creation is handled by patient-service via Kafka consumer.
    */
   async register(userData) {
-    const { name, email, password, role } = userData;
+    const { name, email: rawEmail, password, role } = userData;
+    const email = (rawEmail || '').toLowerCase().trim();
 
     if (!name || !email || !password) {
       throw new Error('Name, email, and password are required');
@@ -60,7 +61,8 @@ class AuthService {
    * Returns a signed JWT plus the sanitised user object.
    */
   async login(email, password) {
-    const user = await userRepository.findByEmail(email);
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    const user = await userRepository.findByEmail(normalizedEmail);
 
     if (!user || !(await user.comparePassword(password))) {
       throw new Error('Invalid email or password');

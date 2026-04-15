@@ -128,8 +128,10 @@ class ExternalServices {
             const params = {};
             if (specialty) params.specialty = specialty;
             if (name) params.name = name;
-            // Call through API Gateway
-            const url = `${this.doctorServiceURL}/search`;
+            if (date) params.date = date;
+
+            // Use the configured doctor service URL (auth-service exposes /doctors)
+            const url = `${this.doctorServiceURL}`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -139,7 +141,7 @@ class ExternalServices {
             };
             console.log(`[EXTERNAL] Searching doctors from ${url} params=${JSON.stringify(params)}`);
             const res = await axios.get(url, { headers, params, timeout: 10000 });
-            if (res && res.data && res.data.data) return res.data.data;
+            if (res && res.data && Array.isArray(res.data.data)) return res.data.data;
         } catch (err) {
             console.warn(`[EXTERNAL] Failed to search doctors: ${err?.message}. Falling back to mock.`);
         }
@@ -172,8 +174,10 @@ class ExternalServices {
                 'x-user-role': 'SERVICE'
             };
             const res = await axios.get(url, { headers, params: { date }, timeout: 10000 });
-            if (res && res.data && Array.isArray(res.data.data)) {
+            if (res && res.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
                 return res.data.data.filter(s => !s.isBooked).map(s => s.timeSlot);
+            } else {
+                console.warn(`[EXTERNAL] Doctor service returned no slots for ${doctorId} on ${date}; falling back to local Slot model.`);
             }
         } catch (err) {
             console.warn(`[EXTERNAL] Failed to fetch slots from service: ${err?.message}. Falling back to local Slot model.`);

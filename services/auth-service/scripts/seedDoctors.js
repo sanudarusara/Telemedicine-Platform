@@ -8,8 +8,10 @@ const seed = async () => {
   const doctors = [
     { name: 'Dr. Sarah Johnson', email: 'sarah@example.com', password: 'password123', role: 'DOCTOR', specialty: 'Cardiology', fee: 2500, phone: '+10000000001', isVerified: true },
     { name: 'Dr. Michael Chen', email: 'michael@example.com', password: 'password123', role: 'DOCTOR', specialty: 'Dermatology', fee: 2000, phone: '+10000000002', isVerified: true },
-    { name: 'Dr. Amanda Perera', email: 'amanda@example.com', password: 'password123', role: 'DOCTOR', specialty: 'General Medicine', fee: 1500, phone: '+10000000003', isVerified: true }
+    { name: 'Dr. Amanda Perera', email: 'amanda@example.com', password: 'password123', role: 'DOCTOR', specialty: 'General Medicine', fee: 1500, phone: '+10000000003', isVerified: true },
+    { name: 'Dr. Hemantha Dias', email: 'hemantha.dias@example.com', password: 'password123', role: 'DOCTOR', specialty: 'General Medicine', fee: 1200, phone: '+94771234567', isVerified: true }
   ];
+
 
   for (const doc of doctors) {
     const existing = await User.findOne({ email: doc.email });

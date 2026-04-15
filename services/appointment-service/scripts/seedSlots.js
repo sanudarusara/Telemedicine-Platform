@@ -10,7 +10,7 @@ const seed = async () => {
   console.log('[seed] Connected to', mongoURI);
 
   // fetch doctors from auth-service
-  const doctorServiceUrl = process.env.DOCTOR_SERVICE_URL || 'http://localhost:5000';
+  const doctorServiceUrl = process.env.DOCTOR_SERVICE_URL || 'http://localhost:3000';
   const headers = {
     'x-gateway': 'true',
     'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
@@ -45,6 +45,7 @@ const seed = async () => {
         }
       }
     }
+    console.log(`[seed] seeded slots for doctor ${doc.email || doc.id}`);
   }
 
   console.log('[seed] Slots seeded');

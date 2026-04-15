@@ -6,6 +6,8 @@ const patientProxy = require('./routes/patientProxy');
 const auditProxy = require('./routes/auditProxy');
 const notificationProxy = require('./routes/notificationProxy');
 const paymentProxy = require('./routes/paymentProxy');
+const appointmentProxy = require('./routes/appointmentProxy');
+const doctorProxy = require('./routes/doctorProxy');
 const aiSymptomProxy = require('./routes/aiSymptomProxy');
 
 const app = express();
@@ -48,15 +50,15 @@ app.use('/api/patients', patientProxy);
 app.use('/api/reports', patientProxy);
 app.use('/api/audit', auditProxy);
 app.use('/api/notifications', notificationProxy);
-app.use('/api/payments', paymentProxy);
-app.use('/api/symptoms', aiSymptomProxy);
+app.use('/api/payments', paymentProxy);app.use('/api/appointments', appointmentProxy);
+app.use('/api/doctors', doctorProxy);app.use('/api/symptoms', aiSymptomProxy);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.method} ${req.originalUrl} not found`,
-    hint: 'Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications, /api/payments, /api/symptoms',
+    hint: 'Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications, /api/payments, /api/appointments, /api/doctors, /api/symptoms',
   });
 });
 

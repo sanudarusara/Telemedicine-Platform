@@ -11,6 +11,8 @@ module.exports = {
   AUDIT_SERVICE_URL: process.env.AUDIT_SERVICE_URL || 'http://localhost:5002',
   NOTIFICATION_SERVICE_URL: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5003',
   PAYMENT_SERVICE_URL: process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004',
+  APPOINTMENT_SERVICE_URL: process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3001',
+  DOCTOR_SERVICE_URL: process.env.DOCTOR_SERVICE_URL || 'http://localhost:3003',
   AI_SYMPTOM_SERVICE_URL: process.env.AI_SYMPTOM_SERVICE_URL || 'http://localhost:5005',
 
   // Internal API key for secure service-to-service communication

@@ -142,6 +142,33 @@ services:
     networks:
       - healthcare-network
 
+  doctor-service:
+    build:
+      context: ./doctor-service
+      dockerfile: Dockerfile
+    container_name: healthcare-doctor-service
+    restart: unless-stopped
+    expose:
+      - "3003"
+    ports:
+      - "3004:3003"
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      MONGO_URI: mongodb://mongodb:27017/doctor-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
   patient-service:
     build:
       context: .
@@ -257,7 +284,7 @@ services:
       MONGO_URI: mongodb://mongodb:27017/appointment-management
       # Use API Gateway for calling other services
       PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
-      DOCTOR_SERVICE_URL: http://api-gateway:5400/api/doctors
+      DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
       NOTIFICATION_SERVICE_URL: http://api-gateway:5400/api/notifications
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}

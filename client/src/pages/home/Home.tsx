@@ -95,6 +95,25 @@ const Home = () => {
             </CardContent>
           </Card>
         </div>
+        
+        {/* Patient Login */}
+        <div className="grid gap-6 md:grid-cols-2 mt-6">
+          <Card
+            className="cursor-pointer hover:shadow-lg transition"
+            onClick={() => navigate("/patient-login")}
+          >
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-sky-100">
+                <svg className="h-6 w-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M12 12a5 5 0 100-10 5 5 0 000 10zM3 21v-2a4 4 0 014-4h10a4 4 0 014 4v2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold">Patient Login</h2>
+              <p className="text-sm text-muted-foreground">Sign in to view and manage your appointments</p>
+              <Button variant="outline">Patient Login</Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

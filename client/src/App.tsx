@@ -13,9 +13,12 @@ import AppointmentDetail from "./pages/appointments/AppointmentDetail";
 
 // New lovable pages
 import Login from "./pages/Login.jsx";
+import PatientLogin from "./pages/PatientLogin.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Appointments from "./pages/Appointments.jsx";
 import VideoConsultation from "./pages/VideoConsultation.jsx";
+import ConsultationPage from "./pages/appointments/ConsultationPage";
+import PatientDashboard from "./pages/PatientDashboard.jsx";
 import Prescriptions from "./pages/Prescriptions.jsx";
 import Profile from "./pages/Profile.jsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -45,7 +48,10 @@ const App = () => (
 
           {/* New lovable doctor routes */}
           <Route path="/doctor-login" element={<Login />} />
+          <Route path="/patient-login" element={<PatientLogin />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/patient-dashboard" element={<PatientDashboard />} />
+          <Route path="/appointments/consultation" element={<ConsultationPage />} />
           <Route path="/doctor-appointments" element={<Appointments />} />
           <Route path="/video-consultation" element={<VideoConsultation />} />
           <Route path="/prescriptions" element={<Prescriptions />} />

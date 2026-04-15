@@ -12,7 +12,9 @@ export type Appointment = {
 }
 
 // Use Vite proxy in development by default (empty base) so requests are same-origin
-const API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || "";
+// When running Vite dev server (`import.meta.env.DEV === true`) keep API_BASE empty
+// so `fetch('/api/...')` is proxied by Vite and avoids CORS. In production use the env URL.
+const API_BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_APPOINTMENT_API_URL || "");
 
 export async function getAppointments(params?: {
   patientId?: string;

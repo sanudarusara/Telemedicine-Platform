@@ -16,6 +16,12 @@ class AuthController {
    */
   async register(req, res) {
     try {
+      console.log('[AuthController] Registration request received:', {
+        name: req.body.name,
+        email: req.body.email,
+        role: req.body.role
+      });
+
       const result = await authService.register(req.body);
 
       if (result && result.user) {
@@ -45,6 +51,7 @@ class AuthController {
         data: result,
       });
     } catch (error) {
+      console.error('[AuthController] Registration error:', error.message);
       return res.status(400).json({ success: false, message: error.message });
     }
   }
@@ -56,6 +63,8 @@ class AuthController {
   async login(req, res) {
     try {
       const { email, password } = req.body;
+
+      console.log('[AuthController] Login request received for email:', email);
 
       if (!email || !password) {
         return res.status(400).json({
@@ -87,6 +96,8 @@ class AuthController {
         data: result,
       });
     } catch (error) {
+      console.error('[AuthController] Login error:', error.message);
+      
       if (req.body.email) {
         const failedEvent = createEvent({
           eventType: EVENTS.LOGIN_FAILED,

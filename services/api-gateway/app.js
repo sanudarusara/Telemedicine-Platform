@@ -14,7 +14,7 @@ const app = express();
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:8082'],
+  origin: ['http://localhost:5173', 'http://localhost:8082', 'http://localhost:8083'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -31,6 +31,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
+  // Debug: log incoming auth login requests to help diagnose client payload issues
+  if (req.originalUrl && req.originalUrl.includes('/api/auth/login')) {
+    try {
+      console.log('--- LOGIN DEBUG START ---');
+      console.log('Headers:', JSON.stringify(req.headers));
+      // req.body is available because body parser is applied before this middleware
+      console.log('Body:', JSON.stringify(req.body));
+      console.log('--- LOGIN DEBUG END ---');
+    } catch (e) {
+      console.log('[LOGIN DEBUG] error serializing request:', e.message);
+    }
+  }
   next();
 });
 

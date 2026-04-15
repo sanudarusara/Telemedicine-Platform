@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, UserRound, Loader2, Stethoscope, Calendar, Clock, DollarSign, Search, X } from "lucide-react";
+import { MapPin, UserRound, Loader2, Stethoscope, Calendar, Clock, DollarSign, Search, X, Video, Building, Radio } from "lucide-react";
 import { createAppointment, searchDoctors, getAvailableSlots } from "@/services/appointmentsService";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -121,11 +121,65 @@ export default function ConsultationPage() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingSlot, setBookingSlot] = useState<any | null>(null);
   const [patientProfile, setPatientProfile] = useState<any | null>(null);
+  const [reportFile, setReportFile] = useState<File | null>(null);
   const [symptoms, setSymptoms] = useState("");
   const [notes, setNotes] = useState("");
+  const [consultationType, setConsultationType] = useState<string>("clinic"); // Default to clinic
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  const [patientId, setPatientId] = useState<string | null>(() => qs.get("patientId"));
+  const [patientId, setPatientId] = useState<string | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
+
+  // Fetch logged-in user details on mount
+  useEffect(() => {
+    let mounted = true;
+    
+    async function fetchLoggedInUser() {
+      setIsCheckingAuth(true);
+      try {
+        const raw = localStorage.getItem('user');
+        console.log("Raw user from localStorage:", raw);
+        
+        if (raw) {
+          const u = JSON.parse(raw);
+          console.log("Parsed user object:", u);
+          
+          const id = u._id || u.id || u.patientId || u.userId || u.patient_id || u.user_id;
+          
+          if (id) {
+            console.log("Found patient ID:", id);
+            setPatientId(String(id));
+            setPatientProfile(u);
+          } else {
+            console.warn("No ID field found in user object. Available keys:", Object.keys(u));
+            setError("Please log in again. User ID not found.");
+          }
+        } else {
+          console.warn("No user found in localStorage");
+          const sessionRaw = sessionStorage.getItem('user');
+          if (sessionRaw) {
+            const u = JSON.parse(sessionRaw);
+            const id = u._id || u.id || u.patientId || u.userId;
+            if (id) {
+              console.log("Found patient ID in sessionStorage:", id);
+              setPatientId(String(id));
+              setPatientProfile(u);
+            }
+          } else {
+            setError("Please sign in to book appointments");
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse user from storage:", e);
+        setError("Please sign in to book appointments");
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    }
+    
+    fetchLoggedInUser();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     if (selectedDoctor && modalOpen) {
@@ -133,20 +187,6 @@ export default function ConsultationPage() {
       if (doctorId) fetchSlotsForDoctor(doctorId, selectedDate);
     }
   }, [selectedDoctor, selectedDate, modalOpen]);
-
-  useEffect(() => {
-    if (patientId) return;
-    try {
-      const raw = localStorage.getItem('user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        const id = u._id || u.id || u.patientId || u.userId || null;
-        if (id) setPatientId(String(id));
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, [patientId]);
 
   async function doSearchDoctors() {
     try {
@@ -244,59 +284,95 @@ export default function ConsultationPage() {
     return dt.toISOString();
   }
 
-  async function handleBook(slot: any) {
-    // kept for backward compatibility but prefer submitBooking via form
-    submitBooking({ slot, symptoms: '', notes: '' });
-  }
-
   async function openBookingForm(slot: any) {
     if (!selectedDoctor) return setError('No doctor selected');
-    // ensure patient profile is loaded from localStorage
-    try {
-      const raw = localStorage.getItem('user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        setPatientProfile(u);
-        if (!patientId) setPatientId(u._id || u.id || u.patientId || u.userId || null);
+    
+    if (!patientId) {
+      try {
+        const raw = localStorage.getItem('user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          const id = u._id || u.id || u.patientId || u.userId;
+          if (id) {
+            setPatientId(String(id));
+            setPatientProfile(u);
+          } else {
+            setError('Please sign in to book appointments');
+            return;
+          }
+        } else {
+          setError('Please sign in to book appointments');
+          return;
+        }
+      } catch (e) {
+        setError('Please sign in to book appointments');
+        return;
       }
-    } catch (e) {
-      // ignore
     }
+    
     setBookingSlot(slot);
     setSymptoms("");
     setNotes("");
+    setReportFile(null);
+    setConsultationType("clinic"); // Reset to default
     setBookingModalOpen(true);
   }
 
   async function submitBooking({ slot, symptoms: s = '', notes: n = '' }: { slot: any; symptoms?: string; notes?: string; }) {
-    if (!selectedDoctor) return setError('No doctor selected');
-    let pid = patientId;
-    if (!pid && patientProfile) {
-      pid = patientProfile._id || patientProfile.id || null;
-      if (pid) setPatientId(String(pid));
+    if (!selectedDoctor) {
+      setError('No doctor selected');
+      return;
     }
-    if (!pid) return setError('Please sign in before booking');
+    
+    let pid = patientId;
+    if (!pid) {
+      try {
+        const raw = localStorage.getItem('user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          pid = u._id || u.id || u.patientId || u.userId;
+          if (pid) {
+            setPatientId(String(pid));
+            setPatientProfile(u);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to get patient ID:", e);
+      }
+    }
+    
+    if (!pid) {
+      setError('Please sign in to book appointments. Patient ID not found.');
+      return;
+    }
 
     try {
       setBookingLoading(true);
       setError("");
       const time = typeof slot === 'string' ? slot : (slot.timeSlot || slot.time || slot.label);
       const iso = slotToISO(selectedDate, time);
+      
+      console.log("Booking with patientId:", pid);
+      console.log("Booking with doctorId:", typeof selectedDoctor === 'object' ? selectedDoctor._id : selectedDoctor);
+      console.log("Consultation Type:", consultationType);
+      
       const payload = {
         patientId: pid as string,
         doctorId: typeof selectedDoctor === 'object' ? selectedDoctor._id : selectedDoctor,
         date: iso,
         timeSlot: time,
-        consultationType: 'clinic',
+        consultationType: consultationType, // Include the selected consultation type
         symptoms: s,
         notes: n,
       } as any;
 
       await createAppointment(payload);
       setBookingModalOpen(false);
+      setReportFile(null);
       navigate('/appointments');
     } catch (e: any) {
-      setError(e?.message || 'Booking failed');
+      console.error("Booking error:", e);
+      setError(e?.message || 'Booking failed. Please make sure you are logged in.');
     } finally {
       setBookingLoading(false);
     }
@@ -323,6 +399,12 @@ export default function ConsultationPage() {
               <div className="inline-flex items-center gap-2 mt-3 px-3 py-1 bg-primary/10 rounded-full">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-xs text-primary font-medium">{doctors.length} Doctors Available</span>
+              </div>
+            )}
+            {patientId && !isCheckingAuth && (
+              <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full ml-2">
+                <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                <span className="text-xs text-green-700 dark:text-green-400">Logged in as Patient</span>
               </div>
             )}
           </div>
@@ -494,8 +576,6 @@ export default function ConsultationPage() {
             </div>
           </div>
 
-          {/* Patient ID removed: booking will use logged-in user info from localStorage */}
-
           {/* Error Display */}
           {error && (
             <div className="mt-6 p-4 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -543,9 +623,12 @@ export default function ConsultationPage() {
                           key={idx}
                           variant={isBooked ? "outline" : "default"}
                           className={`h-auto py-3 flex flex-col gap-1 ${isBooked ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 transition-transform'}`}
-                          disabled={isBooked || bookingLoading}
+                          disabled={isBooked || bookingLoading || !patientId}
                           onClick={() => {
-                            // open booking form for this slot
+                            if (!patientId) {
+                              setError('Please sign in to book appointments');
+                              return;
+                            }
                             setModalOpen(false);
                             openBookingForm(typeof s === 'string' ? { timeSlot: s } : s);
                           }}
@@ -568,7 +651,7 @@ export default function ConsultationPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Booking Form Modal */}
+          {/* Booking Form Modal with Consultation Type Selector */}
           <Dialog open={bookingModalOpen} onOpenChange={setBookingModalOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -588,6 +671,7 @@ export default function ConsultationPage() {
                 <div className="text-sm">
                   <div className="font-medium">Patient</div>
                   <div className="text-foreground/90">{patientProfile?.fullName || patientProfile?.name || patientId || 'Not signed in'}</div>
+                  <div className="text-xs text-muted-foreground">Patient ID: {patientId || 'Not available'}</div>
                 </div>
 
                 <div className="text-sm">
@@ -595,21 +679,82 @@ export default function ConsultationPage() {
                   <div className="text-foreground/90">{new Date(selectedDate).toLocaleDateString()} • {bookingSlot ? (typeof bookingSlot === 'string' ? bookingSlot : (bookingSlot.timeSlot || bookingSlot.time || bookingSlot.label)) : ''}</div>
                 </div>
 
+                {/* Consultation Type Selector */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Consultation Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      variant={consultationType === 'video' ? 'default' : 'outline'}
+                      className={`flex items-center gap-2 py-3 ${consultationType === 'video' ? 'bg-primary' : ''}`}
+                      onClick={() => setConsultationType('video')}
+                    >
+                      <Video className="w-4 h-4" />
+                      Video Call
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={consultationType === 'clinic' ? 'default' : 'outline'}
+                      className={`flex items-center gap-2 py-3 ${consultationType === 'clinic' ? 'bg-primary' : ''}`}
+                      onClick={() => setConsultationType('clinic')}
+                    >
+                      <Building className="w-4 h-4" />
+                      In-Clinic
+                    </Button>
+                  </div>
+                  {consultationType === 'video' && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <Video className="w-3 h-3 inline mr-1" />
+                      A video consultation link will be sent to your email
+                    </p>
+                  )}
+                  {consultationType === 'clinic' && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <Building className="w-3 h-3 inline mr-1" />
+                      Please visit the clinic at the scheduled time
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="text-sm font-medium mb-1 block">Symptoms</label>
-                  <textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} className="w-full border rounded-md p-2 min-h-[80px]" placeholder="Briefly describe symptoms" />
+                  <textarea 
+                    value={symptoms} 
+                    onChange={(e) => setSymptoms(e.target.value)} 
+                    className="w-full border rounded-md p-2 min-h-[80px]" 
+                    placeholder="Briefly describe symptoms" 
+                  />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium mb-1 block">Notes (optional)</label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border rounded-md p-2 min-h-[60px]" placeholder="Any additional notes" />
+                  <textarea 
+                    value={notes} 
+                    onChange={(e) => setNotes(e.target.value)} 
+                    className="w-full border rounded-md p-2 min-h-[60px]" 
+                    placeholder="Any additional notes" 
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Attach Report (optional)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    onChange={(e) => {
+                      const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                      setReportFile(f);
+                    }}
+                    className="w-full"
+                  />
+                  {reportFile ? <div className="text-xs text-muted-foreground mt-1">Selected: {reportFile.name}</div> : null}
                 </div>
               </div>
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setBookingModalOpen(false)}>Cancel</Button>
-                <Button disabled={bookingLoading} onClick={() => submitBooking({ slot: bookingSlot, symptoms, notes })} className="ml-2">
-                  {bookingLoading ? 'Booking...' : 'Confirm Appointment'}
+                <Button disabled={bookingLoading || !patientId} onClick={() => submitBooking({ slot: bookingSlot, symptoms, notes })} className="ml-2">
+                  {bookingLoading ? 'Booking...' : `Confirm ${consultationType === 'video' ? 'Video' : 'Clinic'} Appointment`}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -64,7 +64,11 @@ const Home = () => {
           {/* Appointments */}
           <Card
             className="cursor-pointer hover:shadow-lg transition"
-            onClick={() => navigate("/appointments")}
+            onClick={() => {
+              const user = localStorage.getItem("user");
+              if (user) navigate("/appointments");
+              else navigate("/patient-login");
+            }}
           >
             <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
               <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-amber-100">
@@ -74,7 +78,11 @@ const Home = () => {
               </div>
               <h2 className="text-lg font-semibold">Appointments</h2>
               <p className="text-sm text-muted-foreground">View and manage scheduled appointments</p>
-              <Button variant="outline">Go to Appointments</Button>
+              <Button variant="outline" onClick={() => {
+                const user = localStorage.getItem("user");
+                if (user) navigate("/appointments");
+                else navigate("/patient-login");
+              }}>Go to Appointments</Button>
             </CardContent>
           </Card>
 

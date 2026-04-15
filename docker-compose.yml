@@ -1,6 +1,31 @@
 version: "3.9"
 
 services:
+  appointment-service:
+    build: ./services/appointment-service
+    container_name: appointment-service
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./services/appointment-service/.env
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "3003:3003"
+    env_file:
+      - ./services/notification-service/.env
+    depends_on:
+      - mongodb
+      - appointment-service
+    environment:
+      - APPOINTMENT_SERVICE_URL=http://appointment-service:3001
+    restart: unless-stopped
+
   doctor-service:
     build: ./services/doctor-service
     container_name: doctor-service
@@ -19,6 +44,15 @@ services:
       - ./services/telemedicine-service/.env
     restart: unless-stopped
 
+  mongodb:
+    image: mongo:6
+    container_name: healthcare-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
   client:
     build: ./client
     container_name: healthcare-client
@@ -29,4 +63,9 @@ services:
     depends_on:
       - doctor-service
       - telemedicine-service
+      - appointment-service
+      - notification-service
     restart: unless-stopped
+
+volumes:
+  mongodb_data:

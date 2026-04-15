@@ -298,55 +298,71 @@ class ExternalServices {
         }
     }
 
-    async sendNotification(appointment, eventType) {
-        try {
-            console.log(`📧 Sending ${eventType} notification for appointment ${appointment.appointmentId}`);
-
-            const response = await axios.post(
-                `${this.notificationServiceURL}/appointment`,
-                {
-                    appointment: {
-                        appointmentId: appointment.appointmentId,
-                        patientId: appointment.patientId,
-                        patientName: appointment.patientName,
-                        patientEmail: appointment.patientEmail,
-                        patientPhone: appointment.patientPhone,
-                        doctorId: appointment.doctorId,
-                        doctorName: appointment.doctorName,
-                        doctorEmail: appointment.doctorEmail,
-                        doctorPhone: appointment.doctorPhone,
-                        date: appointment.date,
-                        timeSlot: appointment.timeSlot,
-                        status: appointment.status,
-                        consultationType: appointment.consultationType,
-                        consultationLink: appointment.consultationLink,
-                        symptoms: appointment.symptoms
-                    },
-                    eventType: eventType
-                },
-                {
-                    timeout: 10000,
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'x-gateway': 'true',
-                        'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
-                        'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
-                        'x-user-role': 'SERVICE'
-                    }
-                }
-            );
-
-            console.log(`✅ Notification sent successfully for ${eventType}`);
-            return response.data;
-
-        } catch (error) {
-            console.error(`❌ Failed to send notification: ${error.message}`);
-            if (error.code === 'ECONNREFUSED') {
-                console.error('   Make sure notification service is running');
+    // services/appointment-service/src/services/externalServices.js (sendNotification method only)
+async sendNotification(appointment, eventType) {
+    try {
+        console.log(`📧 Sending ${eventType} notification for appointment ${appointment.appointmentId}`);
+        
+        // Map event types
+        let notificationEventType = eventType;
+        if (eventType === 'created') notificationEventType = 'created';
+        else if (eventType === 'confirmed') notificationEventType = 'confirmed';
+        else if (eventType === 'cancelled') notificationEventType = 'cancelled';
+        else if (eventType === 'rescheduled') notificationEventType = 'rescheduled';
+        
+        const url = `${this.notificationServiceURL}/api/notifications/appointment`;
+        
+        // Send appointment data with proper names
+        const payload = {
+            appointmentId: appointment.appointmentId,
+            eventType: notificationEventType,
+            appointment: {
+                appointmentId: appointment.appointmentId,
+                patientId: appointment.patientId,
+                patientName: appointment.patientName, // This should be actual name
+                patientEmail: appointment.patientEmail,
+                patientPhone: appointment.patientPhone,
+                doctorId: appointment.doctorId,
+                doctorName: appointment.doctorName, // This should be actual name
+                doctorEmail: appointment.doctorEmail,
+                doctorPhone: appointment.doctorPhone,
+                specialty: appointment.specialty,
+                date: appointment.date,
+                timeSlot: appointment.timeSlot,
+                status: appointment.status,
+                consultationType: appointment.consultationType,
+                consultationLink: appointment.consultationLink,
+                symptoms: appointment.symptoms,
+                notes: appointment.notes
             }
-            return { success: false, error: error.message };
+        };
+        
+        console.log(`[NOTIFICATION] Sending to patient: ${appointment.patientName}`);
+        console.log(`[NOTIFICATION] Doctor: ${appointment.doctorName}`);
+        
+        const response = await axios.post(url, payload, {
+            timeout: 10000,
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-gateway': 'true',
+                'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
+                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
+                'x-user-role': 'SERVICE'
+            }
+        });
+        
+        console.log(`✅ Notification sent successfully for ${eventType}`);
+        return response.data;
+        
+    } catch (error) {
+        console.error(`❌ Failed to send notification: ${error.message}`);
+        if (error.response) {
+            console.error(`   Response status: ${error.response.status}`);
+            console.error(`   Response data:`, error.response.data);
         }
+        return { success: false, error: error.message };
     }
+}
 }
 
 module.exports = new ExternalServices();

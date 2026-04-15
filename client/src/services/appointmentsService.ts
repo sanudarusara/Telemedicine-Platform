@@ -113,8 +113,36 @@ export async function createAppointment(payload: {
   symptoms?: string;
   notes?: string;
   paymentAmount?: number;
+  // optional file upload (single file) for patient reports
+  reportFile?: File | null;
 }): Promise<Appointment> {
-  const res = await fetch(`${API_BASE}/api/appointments`, {
+  const url = `${API_BASE}/api/appointments`;
+
+  // If a file is provided, use FormData to send multipart/form-data
+  if (payload.reportFile) {
+    const form = new FormData();
+    form.append('patientId', payload.patientId);
+    form.append('doctorId', payload.doctorId);
+    form.append('date', payload.date);
+    form.append('timeSlot', payload.timeSlot);
+    if (payload.consultationType) form.append('consultationType', payload.consultationType);
+    if (payload.symptoms) form.append('symptoms', payload.symptoms);
+    if (payload.notes) form.append('notes', payload.notes);
+    if (typeof payload.paymentAmount !== 'undefined') form.append('paymentAmount', String(payload.paymentAmount));
+    form.append('report', payload.reportFile);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to create appointment');
+    }
+    return data?.data;
+  }
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

@@ -27,8 +27,9 @@ export type SymptomAnalysisResult = {
   updatedAt?: string;
 };
 
+// 🔥 CHANGED HERE
 const API_BASE =
-  import.meta.env.VITE_AI_SYMPTOM_API_URL || "http://localhost:5003";
+  import.meta.env.VITE_API_GATEWAY_URL || "http://localhost:5400/api";
 
 export async function analyzeSymptoms(
   payload: AnalyzeSymptomsPayload

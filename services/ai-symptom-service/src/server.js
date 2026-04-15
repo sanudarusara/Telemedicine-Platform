@@ -28,7 +28,7 @@ app.get("/", (req, res) => {
 });
 
 // Server start
-const PORT = process.env.PORT || 5003;
+const PORT = process.env.PORT || 5005;
 app.listen(PORT, () => {
   console.log(`AI Symptom Service running on port ${PORT}`);
 });

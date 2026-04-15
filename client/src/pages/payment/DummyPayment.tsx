@@ -10,25 +10,43 @@ const DummyPayment = () => {
 
   const handlePayment = async () => {
     try {
+      const token = localStorage.getItem("token"); // adjust if your token key is different
+
+      const config = {
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {},
+      };
+
       if (paymentMethod === "STRIPE") {
-        const res = await axios.post("http://localhost:5002/payments/create", {
-          userId,
-          appointmentId,
-          amount: Number(amount),
-          currency,
-          paymentMethod: "STRIPE",
-        });
+        const res = await axios.post(
+          "http://localhost:5400/api/payments/create",
+          {
+            userId,
+            appointmentId,
+            amount: Number(amount),
+            currency,
+            paymentMethod: "STRIPE",
+          },
+          config
+        );
 
         const { checkoutUrl } = res.data;
         window.location.href = checkoutUrl;
       }
 
       if (paymentMethod === "PAYHERE") {
-        const res = await axios.post("http://localhost:5002/payments/payhere-create", {
-          userId,
-          appointmentId,
-          amount: Number(amount),
-        });
+        const res = await axios.post(
+          "http://localhost:5400/api/payments/payhere-create",
+          {
+            userId,
+            appointmentId,
+            amount: Number(amount),
+          },
+          config
+        );
 
         const data = res.data;
 

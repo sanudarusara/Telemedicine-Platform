@@ -11,7 +11,8 @@ export type Appointment = {
   [key: string]: any;
 }
 
-const API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || "http://localhost:3001";
+// Use Vite proxy in development by default (empty base) so requests are same-origin
+const API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || "";
 
 export async function getAppointments(params?: {
   patientId?: string;
@@ -99,4 +100,52 @@ export async function rescheduleAppointment(
   }
 
   return data?.data;
+}
+
+export async function createAppointment(payload: {
+  patientId: string;
+  doctorId: string;
+  date: string; // ISO datetime
+  timeSlot: string;
+  consultationType?: string;
+  symptoms?: string;
+  notes?: string;
+  paymentAmount?: number;
+}): Promise<Appointment> {
+  const res = await fetch(`${API_BASE}/api/appointments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to create appointment');
+  }
+
+  return data?.data;
+}
+
+export async function searchDoctors(params?: { specialty?: string; name?: string; date?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.specialty) qs.set('specialty', params.specialty);
+  if (params?.name) qs.set('name', params.name);
+  if (params?.date) qs.set('date', params.date);
+
+  const url = `${API_BASE}/api/appointments/doctors/search${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await fetch(url, { method: 'GET' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to search doctors');
+  return data?.data || [];
+}
+
+export async function getAvailableSlots(doctorId: string, date: string) {
+  const qs = new URLSearchParams();
+  qs.set('doctorId', doctorId);
+  qs.set('date', date);
+  const url = `${API_BASE}/api/appointments/doctors/available-slots?${qs.toString()}`;
+  const res = await fetch(url, { method: 'GET' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to fetch slots');
+  return data?.data || [];
 }

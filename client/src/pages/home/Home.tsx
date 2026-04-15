@@ -20,7 +20,7 @@ const Home = () => {
           </p>
         </div>
 
-        {/* Cards */}
+        {/* Cards - First Row */}
         <div className="grid gap-6 md:grid-cols-2 mt-8">
           
           {/* Payment */}
@@ -56,7 +56,11 @@ const Home = () => {
               <Button variant="outline">Check Symptoms</Button>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Cards - Second Row */}
+        <div className="grid gap-6 md:grid-cols-2 mt-6">
+          
           {/* Appointments */}
           <Card
             className="cursor-pointer hover:shadow-lg transition"
@@ -74,6 +78,22 @@ const Home = () => {
             </CardContent>
           </Card>
 
+          {/* Consultation */}
+          <Card
+            className="cursor-pointer hover:shadow-lg transition"
+            onClick={() => navigate("/appointments/consultation")}
+          >
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-emerald-100">
+                <svg className="h-6 w-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 10a9 9 0 11-18 0 9 9 0 0118 0zM8 13l2.5-3L14 15" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold">Consultation</h2>
+              <p className="text-sm text-muted-foreground">Search doctors and book consultations</p>
+              <Button variant="outline">Book Consultation</Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

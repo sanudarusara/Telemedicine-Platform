@@ -4,6 +4,7 @@ import DummyPayment from "./pages/payment/DummyPayment";
 import AiSymptomServicePage from "./pages/ai-service/AiSymptomServicePage";
 import AppointmentsPage from "./pages/appointments/AppointmentsPage";
 import AppointmentDetail from "./pages/appointments/AppointmentDetail";
+import ConsultationPage from "./pages/appointments/ConsultationPage";
 
 const PaymentSuccess = () => <h2>Payment Successful</h2>;
 const PaymentCancel = () => <h2>Payment Cancelled</h2>;
@@ -23,6 +24,7 @@ function App() {
         {/* Appointments */}
         <Route path="/appointments" element={<AppointmentsPage />} />
         <Route path="/appointments/:id" element={<AppointmentDetail />} />
+        <Route path="/appointments/consultation" element={<ConsultationPage />} />
         <Route path="/payment/success" element={<PaymentSuccess />} />
         <Route path="/payment/cancel" element={<PaymentCancel />} />
       </Routes>

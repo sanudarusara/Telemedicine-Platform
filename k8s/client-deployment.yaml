@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthcare-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: healthcare-client
+  template:
+    metadata:
+      labels:
+        app: healthcare-client
+    spec:
+      containers:
+        - name: healthcare-client
+          image: healthcare-platform-client:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8082

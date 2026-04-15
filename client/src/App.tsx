@@ -1,35 +1,36 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import Home from "./pages/home/Home";
-import DummyPayment from "./pages/payment/DummyPayment";
-import AiSymptomServicePage from "./pages/ai-service/AiSymptomServicePage";
-import AppointmentsPage from "./pages/appointments/AppointmentsPage";
-import AppointmentDetail from "./pages/appointments/AppointmentDetail";
-import ConsultationPage from "./pages/appointments/ConsultationPage";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import Login from "./pages/Login.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Appointments from "./pages/Appointments.jsx";
+import VideoConsultation from "./pages/VideoConsultation.jsx";
+import Prescriptions from "./pages/Prescriptions.jsx";
+import Profile from "./pages/Profile.jsx";
+import NotFound from "./pages/NotFound.tsx";
 
-const PaymentSuccess = () => <h2>Payment Successful</h2>;
-const PaymentCancel = () => <h2>Payment Cancelled</h2>;
+const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Home */}
-        <Route path="/" element={<Home />} />
-
-        {/* AI Symptom Service */}
-        <Route path="/ai-symptom-service" element={<AiSymptomServicePage />} />
-
-        {/* Payment */}
-        <Route path="/payment" element={<DummyPayment />} />
-        {/* Appointments */}
-        <Route path="/appointments" element={<AppointmentsPage />} />
-        <Route path="/appointments/:id" element={<AppointmentDetail />} />
-        <Route path="/appointments/consultation" element={<ConsultationPage />} />
-        <Route path="/payment/success" element={<PaymentSuccess />} />
-        <Route path="/payment/cancel" element={<PaymentCancel />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/appointments" element={<Appointments />} />
+          <Route path="/video-consultation" element={<VideoConsultation />} />
+          <Route path="/prescriptions" element={<Prescriptions />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

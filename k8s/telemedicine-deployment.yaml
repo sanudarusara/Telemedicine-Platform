@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemedicine-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemedicine-service
+  template:
+    metadata:
+      labels:
+        app: telemedicine-service
+    spec:
+      containers:
+        - name: telemedicine-service
+          image: healthcare-platform-telemedicine-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5000
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: PORT
+            - name: CLIENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: CLIENT_URL
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-secret
+                  key: MONGO_URI

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doctor-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doctor-service
+  template:
+    metadata:
+      labels:
+        app: doctor-service
+    spec:
+      containers:
+        - name: doctor-service
+          image: healthcare-platform-doctor-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-config
+                  key: PORT
+            - name: CLIENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: doctor-config
+                  key: CLIENT_URL
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-secret
+                  key: MONGO_URI
+            
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: doctor-secret
+                  key: JWT_SECRET      
+
+                  

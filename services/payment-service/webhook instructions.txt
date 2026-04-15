@@ -1,10 +1,12 @@
 after starting the backend(payment-service) and the frontend(dummy-service) with npm start :
 
-- open a command prompt and run: (for stripe)
-stripe listen --forward-to http://localhost:5002/payments/webhook
+- open another terminal in the VS code in the same directiry as payment-service backend and run:
 
-- and open another terminal in the VS code in the same place as backend(payment-service) and run: (for payhere)
-ngrok http 5002
+(for stripe)
+stripe listen --forward-to http://localhost:5004/payments/webhook
+
+(for payhere)
+ngrok http 5004
 
 **this is to make the payment services stripe and payhere listen to the webhooks to make the payment status success.
 

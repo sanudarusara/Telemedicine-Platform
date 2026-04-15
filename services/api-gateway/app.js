@@ -1,10 +1,25 @@
 const express = require('express');
+const cors = require('cors');
+
 const authProxy = require('./routes/authProxy');
 const patientProxy = require('./routes/patientProxy');
 const auditProxy = require('./routes/auditProxy');
 const notificationProxy = require('./routes/notificationProxy');
+const paymentProxy = require('./routes/paymentProxy');
+const aiSymptomProxy = require('./routes/aiSymptomProxy');
 
 const app = express();
+
+// ── CORS ───────────────────────────────────────────────────────────────────────
+const corsOptions = {
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // ── Body parsing ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
@@ -28,32 +43,20 @@ app.get('/health', (req, res) => {
 });
 
 // ── API Gateway Routes ─────────────────────────────────────────────────────────
-// Auth routes proxied to auth-service (register/login public, /me protected)
 app.use('/api/auth', authProxy);
-
-// Patient Management Service
-// Public: /api/patients/auth/* handled above (/api/auth)
-// Protected: /api/patients/* (patient medical data)
 app.use('/api/patients', patientProxy);
-
-// Reports (also served by Patient Management Service)
-// Protected: /api/reports/* (medical report uploads and retrieval)
 app.use('/api/reports', patientProxy);
-
-// Audit Management Service
-// Protected: All routes (ADMIN + DOCTOR only)
 app.use('/api/audit', auditProxy);
-
-// Notification Service
-// Protected: All routes (authenticated users)
 app.use('/api/notifications', notificationProxy);
+app.use('/api/payments', paymentProxy);
+app.use('/api/symptoms', aiSymptomProxy);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.method} ${req.originalUrl} not found`,
-    hint: 'Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications',
+    hint: 'Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications, /api/payments, /api/symptoms',
   });
 });
 

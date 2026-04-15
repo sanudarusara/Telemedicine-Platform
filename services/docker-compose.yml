@@ -96,7 +96,9 @@ services:
       AUTH_SERVICE_URL: http://auth-service:5000
       PATIENT_SERVICE_URL: http://patient-service:5001
       AUDIT_SERVICE_URL: http://audit-service:5002
-      NOTIFICATION_SERVICE_URL: http://notification-service:5003
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment-service:3001}
+      DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:3003}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -221,6 +223,8 @@ services:
       MONGO_URI: mongodb://mongodb:27017/notification-service
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      SERVICE_USER_ID: notification-service
+      SERVICE_USER_NAME: notification service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -251,11 +255,14 @@ services:
       NODE_ENV: production
       PORT: 3001
       MONGO_URI: mongodb://mongodb:27017/appointment-management
-      PATIENT_SERVICE_URL: http://patient-service:5001
-      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      # Use API Gateway for calling other services
+      PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
+      DOCTOR_SERVICE_URL: http://api-gateway:5400/api/doctors
+      NOTIFICATION_SERVICE_URL: http://api-gateway:5400/api/notifications
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
-      DOCTOR_SERVICE_URL: http://auth-service:5000
+      SERVICE_USER_ID: appointment-service
+      SERVICE_USER_NAME: appointment service
     depends_on:
       mongodb:
         condition: service_healthy

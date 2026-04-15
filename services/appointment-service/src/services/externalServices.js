@@ -3,7 +3,8 @@ const Slot = require('../models/Slot');
 
 class ExternalServices {
     constructor() {
-        this.patientServiceURL = process.env.PATIENT_SERVICE_URL || 'http://localhost:3002';
+        // When using API Gateway, these URLs should point to gateway endpoints
+        this.patientServiceURL = process.env.PATIENT_SERVICE_URL || 'http://localhost:5001';
         this.doctorServiceURL = process.env.DOCTOR_SERVICE_URL || 'http://localhost:3003';
         this.notificationServiceURL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
     }
@@ -11,7 +12,7 @@ class ExternalServices {
         // Try fetching the patient's profile via the API Gateway
         // The patient-management-service expects gateway-injected headers (x-gateway, x-api-key, x-user-id, x-user-role)
         try {
-            const url = `${this.patientServiceURL}/api/patients/profile`;
+            const url = `${this.patientServiceURL}/profile`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -25,7 +26,7 @@ class ExternalServices {
             // Optional bearer token if configured
             if (process.env.INTERNAL_API_TOKEN) headers.Authorization = `Bearer ${process.env.INTERNAL_API_TOKEN}`;
             console.log(`[EXTERNAL] Fetching patient ${patientId} from ${url} with headers x-user-id=${headers['x-user-id']} x-user-role=${headers['x-user-role']}`);
-            const res = await axios.get(url, { headers, timeout: 5000 });
+            const res = await axios.get(url, { headers, timeout: 10000 });
                 if (res && res.data && res.data.data) {
                     const patient = res.data.data;
                     // If patient profile lacks basic contact info, try to enrich from auth-service
@@ -39,7 +40,7 @@ class ExternalServices {
                                 'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
                                 'x-user-role': 'SERVICE'
                             };
-                            const ares = await axios.get(authUrl, { headers: aheaders, timeout: 5000 });
+                            const ares = await axios.get(authUrl, { headers: aheaders, timeout: 10000 });
                             if (ares && ares.data && Array.isArray(ares.data.data)) {
                                 const found = ares.data.data.find(u => (u._id && u._id.toString() === patientId.toString()) || (u.id && u.id === patientId));
                                 if (found) {
@@ -74,7 +75,28 @@ class ExternalServices {
 
     async getDoctorDetails(doctorId) {
         try {
-            const url = `${this.doctorServiceURL}/api/auth/doctors/${doctorId}`;
+            // First try internal auth-service doctor endpoint via API Gateway (preferred)
+            const gatewayBase = process.env.GATEWAY_URL || process.env.GATEWAY_BASE || 'http://api-gateway:5400';
+            const gatewayAuthUrl = `${gatewayBase}/api/auth/doctors/${doctorId}`;
+            const gHeaders = {
+                'Content-Type': 'application/json',
+                'x-gateway': 'true',
+                'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
+                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
+                'x-user-role': 'SERVICE'
+            };
+            try {
+                console.log(`[EXTERNAL] Attempting to fetch doctor ${doctorId} from auth via gateway ${gatewayAuthUrl}`);
+                const gres = await axios.get(gatewayAuthUrl, { headers: gHeaders, timeout: 10000 });
+                if (gres && gres.data && gres.data.data) {
+                    console.log(`[EXTERNAL] Retrieved doctor ${doctorId} from auth-service via gateway`);
+                    return gres.data.data;
+                }
+            } catch (gerr) {
+                console.warn(`[EXTERNAL] Gateway auth-service doctor fetch failed: ${gerr.message}`);
+            }
+            // Call through API Gateway at /api/doctors/{doctorId}
+            const url = `${this.doctorServiceURL}/${doctorId}`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -83,11 +105,11 @@ class ExternalServices {
                 'x-user-role': 'SERVICE'
             };
             console.log(`[EXTERNAL] Fetching doctor ${doctorId} from ${url}`);
-            const res = await axios.get(url, { headers, timeout: 5000 });
+            const res = await axios.get(url, { headers, timeout: 10000 });
             if (res && res.data && res.data.data) return res.data.data;
             console.warn(`[EXTERNAL] Unexpected response when fetching doctor ${doctorId}: ${JSON.stringify(res?.data)}`);
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to fetch doctor from auth-service: ${err?.response?.status} ${err?.response?.data ? JSON.stringify(err.response.data) : err.message}. Falling back to mock.`);
+            console.warn(`[EXTERNAL] Failed to fetch doctor from service: ${err?.response?.status} ${err?.response?.data ? JSON.stringify(err.response.data) : err.message}. Falling back to mock.`);
         }
 
         // Fallback mock
@@ -106,7 +128,8 @@ class ExternalServices {
             const params = {};
             if (specialty) params.specialty = specialty;
             if (name) params.name = name;
-            const url = `${this.doctorServiceURL}/api/auth/doctors`;
+            // Call through API Gateway
+            const url = `${this.doctorServiceURL}/search`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -115,7 +138,7 @@ class ExternalServices {
                 'x-user-role': 'SERVICE'
             };
             console.log(`[EXTERNAL] Searching doctors from ${url} params=${JSON.stringify(params)}`);
-            const res = await axios.get(url, { headers, params, timeout: 5000 });
+            const res = await axios.get(url, { headers, params, timeout: 10000 });
             if (res && res.data && res.data.data) return res.data.data;
         } catch (err) {
             console.warn(`[EXTERNAL] Failed to search doctors: ${err?.message}. Falling back to mock.`);
@@ -139,7 +162,8 @@ class ExternalServices {
     async getAvailableSlots(doctorId, date) {
         try {
             if (!date) return [];
-            const url = `${this.doctorServiceURL}/api/auth/doctors/${doctorId}/slots`;
+            // Call through API Gateway
+            const url = `${this.doctorServiceURL}/${doctorId}/available-slots`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -147,12 +171,12 @@ class ExternalServices {
                 'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
                 'x-user-role': 'SERVICE'
             };
-            const res = await axios.get(url, { headers, params: { date }, timeout: 5000 });
+            const res = await axios.get(url, { headers, params: { date }, timeout: 10000 });
             if (res && res.data && Array.isArray(res.data.data)) {
                 return res.data.data.filter(s => !s.isBooked).map(s => s.timeSlot);
             }
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to fetch slots from auth-service: ${err?.message}. Falling back to local Slot model.`);
+            console.warn(`[EXTERNAL] Failed to fetch slots from service: ${err?.message}. Falling back to local Slot model.`);
         }
 
         // fallback to local Slot model
@@ -178,7 +202,8 @@ class ExternalServices {
     async checkAvailability(doctorId, date, timeSlot) {
         try {
             if (!date) return false;
-            const url = `${this.doctorServiceURL}/api/auth/doctors/${doctorId}/slots`;
+            // Call through API Gateway
+            const url = `${this.doctorServiceURL}/${doctorId}/available-slots`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -186,13 +211,13 @@ class ExternalServices {
                 'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
                 'x-user-role': 'SERVICE'
             };
-            const res = await axios.get(url, { headers, params: { date }, timeout: 5000 });
+            const res = await axios.get(url, { headers, params: { date }, timeout: 10000 });
             if (res && res.data && Array.isArray(res.data.data)) {
                 const slot = res.data.data.find(s => s.timeSlot === timeSlot);
                 return !!slot && !slot.isBooked;
             }
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to check availability from auth-service: ${err?.message}. Falling back to local Slot model.`);
+            console.warn(`[EXTERNAL] Failed to check availability from service: ${err?.message}. Falling back to local Slot model.`);
         }
 
         try {
@@ -212,7 +237,8 @@ class ExternalServices {
 
     async reserveDoctorSlot(doctorId, date, timeSlot) {
         try {
-            const url = `${this.doctorServiceURL}/api/auth/doctors/${doctorId}/slots/reserve`;
+            // Call through API Gateway
+            const url = `${this.doctorServiceURL}/${doctorId}/slots/reserve`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -220,11 +246,11 @@ class ExternalServices {
                 'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
                 'x-user-role': 'SERVICE'
             };
-            const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 5000 });
+            const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 10000 });
             if (res && res.data && res.data.success) return res.data.data;
             return null;
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to reserve slot on auth-service: ${err?.message}. Falling back to local Slot model reservation.`);
+            console.warn(`[EXTERNAL] Failed to reserve slot on service: ${err?.message}. Falling back to local Slot model reservation.`);
         }
 
         // fallback to local Slot model reservation
@@ -241,7 +267,8 @@ class ExternalServices {
 
     async releaseDoctorSlot(doctorId, date, timeSlot) {
         try {
-            const url = `${this.doctorServiceURL}/api/auth/doctors/${doctorId}/slots/release`;
+            // Call through API Gateway
+            const url = `${this.doctorServiceURL}/${doctorId}/slots/release`;
             const headers = {
                 'Content-Type': 'application/json',
                 'x-gateway': 'true',
@@ -249,11 +276,11 @@ class ExternalServices {
                 'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
                 'x-user-role': 'SERVICE'
             };
-            const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 5000 });
+            const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 10000 });
             if (res && res.data && res.data.success) return res.data.data;
             return null;
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to release slot on auth-service: ${err?.message}. Falling back to local Slot model release.`);
+            console.warn(`[EXTERNAL] Failed to release slot on service: ${err?.message}. Falling back to local Slot model release.`);
         }
 
         try {
@@ -272,7 +299,7 @@ class ExternalServices {
             console.log(`📧 Sending ${eventType} notification for appointment ${appointment.appointmentId}`);
 
             const response = await axios.post(
-                `${this.notificationServiceURL}/api/notifications/appointment`,
+                `${this.notificationServiceURL}/appointment`,
                 {
                     appointment: {
                         appointmentId: appointment.appointmentId,
@@ -294,8 +321,14 @@ class ExternalServices {
                     eventType: eventType
                 },
                 {
-                    timeout: 5000,
-                    headers: { 'Content-Type': 'application/json' }
+                    timeout: 10000,
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-gateway': 'true',
+                        'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
+                        'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
+                        'x-user-role': 'SERVICE'
+                    }
                 }
             );
 
@@ -305,7 +338,7 @@ class ExternalServices {
         } catch (error) {
             console.error(`❌ Failed to send notification: ${error.message}`);
             if (error.code === 'ECONNREFUSED') {
-                console.error('   Make sure notification service is running on port 3002');
+                console.error('   Make sure notification service is running');
             }
             return { success: false, error: error.message };
         }

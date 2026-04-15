@@ -12,6 +12,21 @@ const jwt = require('jsonwebtoken');
  * Downstream services receive this as trusted headers via injectGatewayHeaders.
  */
 const authenticate = (req, res, next) => {
+  // Allow trusted service-to-gateway calls using the internal API key.
+  // Services can call the gateway with `x-api-key: INTERNAL_API_KEY` and
+  // optionally provide `x-user-id` and `x-user-role`. Treat these as a
+  // service identity and skip JWT verification.
+  const incomingApiKey = req.headers['x-api-key'] || req.headers['x_api_key'];
+  if (incomingApiKey && incomingApiKey === process.env.INTERNAL_API_KEY) {
+    req.user = {
+      id: req.headers['x-user-id'] || process.env.SERVICE_USER_ID || 'service',
+      role: req.headers['x-user-role'] || 'SERVICE',
+      email: req.headers['x-user-email'] || '',
+      name: req.headers['x-user-name'] || process.env.SERVICE_USER_NAME || '',
+    };
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -59,6 +74,16 @@ const optionalAuthenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // If an internal API key is provided, treat it as authenticated service
+    const incomingApiKey = req.headers['x-api-key'] || req.headers['x_api_key'];
+    if (incomingApiKey && incomingApiKey === process.env.INTERNAL_API_KEY) {
+      req.user = {
+        id: req.headers['x-user-id'] || process.env.SERVICE_USER_ID || 'service',
+        role: req.headers['x-user-role'] || 'SERVICE',
+        email: req.headers['x-user-email'] || '',
+        name: req.headers['x-user-name'] || process.env.SERVICE_USER_NAME || '',
+      };
+    }
     return next();
   }
 

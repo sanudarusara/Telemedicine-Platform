@@ -310,7 +310,9 @@ async sendNotification(appointment, eventType) {
         else if (eventType === 'cancelled') notificationEventType = 'cancelled';
         else if (eventType === 'rescheduled') notificationEventType = 'rescheduled';
         
-        const url = `${this.notificationServiceURL}/api/notifications/appointment`;
+        // notificationServiceURL may already include the '/api/notifications' prefix (gateway).
+        // Append only '/appointment' to avoid double '/api/notifications/api/notifications' paths.
+        const url = `${this.notificationServiceURL.replace(/\/$/, '')}/appointment`;
         
         // Send appointment data with proper names
         const payload = {

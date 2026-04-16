@@ -1,6 +1,9 @@
 // services/notification-service/src/services/notificationService.js
 const { v4: uuidv4 } = require('uuid');
 const Notification = require('../models/Notification');
+const emailService = require('./emailService');
+const smsService = require('./smsService');
+const whatsappService = require('./whatsappService');
 
 class NotificationService {
   constructor() {
@@ -9,10 +12,25 @@ class NotificationService {
 
   async sendAppointmentNotification(appointment, eventType, userType) {
     const isPatient = userType === 'patient';
-    
-    // Use the actual names from appointment data
-    const patientName = appointment.patientName || 'Patient';
-    const doctorName = appointment.doctorName || 'Doctor';
+    // Resolve friendly names: prefer provided name, fall back to email local-part or id suffix
+    const resolveName = (appt, forPatient) => {
+      const rawName = forPatient ? appt.patientName : appt.doctorName;
+      if (rawName && String(rawName).trim() && !String(rawName).toLowerCase().startsWith('patient')) return rawName;
+      if (forPatient && appt.patientEmail) {
+        const local = String(appt.patientEmail).split('@')[0];
+        return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      if (!forPatient && appt.doctorEmail) {
+        const local = String(appt.doctorEmail).split('@')[0];
+        return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      const id = forPatient ? (appt.patientId || appt.patient_id) : (appt.doctorId || appt.doctor_id);
+      if (id) return `${forPatient ? 'Patient' : 'Dr.'} ${String(id).slice(-6)}`;
+      return forPatient ? 'Patient' : 'Doctor';
+    };
+
+    const patientName = resolveName(appointment, true);
+    const doctorName = resolveName(appointment, false);
     
     // Only create notification for the specific user type
     const recipientId = isPatient ? appointment.patientId : appointment.doctorId;
@@ -86,8 +104,69 @@ class NotificationService {
     
     await notification.save();
     console.log(`[NOTIFICATION] Created ${eventType} notification for ${userType}: ${recipientName} (${recipientId})`);
-    
-    return { success: true, notificationId: notification.notificationId };
+    // Attempt to send over available channels (email, sms, whatsapp)
+    const channels = {};
+    try {
+      const toEmail = isPatient ? appointment.patientEmail : appointment.doctorEmail;
+      const toPhone = isPatient ? appointment.patientPhone : appointment.doctorPhone;
+
+      // Choose templates based on event type
+      let emailTemplate;
+      let smsText;
+      let whatsappText;
+
+      if (eventType === 'created') {
+        emailTemplate = emailService.getAppointmentCreatedTemplate(appointment, userType);
+        smsText = smsService.getAppointmentCreatedSMS(appointment, userType);
+        whatsappText = whatsappService.getAppointmentCreatedMessage(appointment, userType);
+      } else {
+        emailTemplate = emailService.getAppointmentStatusUpdateTemplate(appointment, userType, eventType);
+        smsText = smsService.getAppointmentStatusUpdateSMS(appointment, userType, eventType);
+        whatsappText = whatsappService.getAppointmentStatusUpdateMessage(appointment, userType, eventType);
+      }
+
+      if (toEmail) {
+        try {
+          const em = await emailService.sendEmail(toEmail, emailTemplate.subject, emailTemplate.html);
+          channels.email = em;
+        } catch (e) {
+          channels.email = { success: false, error: e.message };
+        }
+      }
+
+      if (toPhone) {
+        try {
+          const sm = await smsService.sendSMS(toPhone, smsText);
+          channels.sms = sm;
+        } catch (e) {
+          channels.sms = { success: false, error: e.message };
+        }
+
+        try {
+          const wa = await whatsappService.sendWhatsApp(toPhone, whatsappText);
+          channels.whatsapp = wa;
+        } catch (e) {
+          channels.whatsapp = { success: false, error: e.message };
+        }
+      }
+
+      // Update notification record with channel statuses
+      notification.channels = channels;
+      notification.status = (channels.email && channels.email.success) || (channels.sms && channels.sms.success) || (channels.whatsapp && channels.whatsapp.success) ? 'sent' : 'failed';
+      if (notification.status === 'failed') {
+        notification.error = channels;
+      }
+      await notification.save();
+
+    } catch (err) {
+      console.error('[NOTIFICATION] Error while sending channels:', err.message);
+      notification.status = 'failed';
+      notification.error = err.message;
+      await notification.save();
+      return { success: false, error: err.message };
+    }
+
+    return { success: true, notificationId: notification.notificationId, channels };
   }
 
   async sendAppointmentNotifications(appointment, eventType) {

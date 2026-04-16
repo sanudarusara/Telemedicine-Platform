@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-config
+data:
+  PORT: "3002"
+  CLIENT_URL: "http://localhost:30082"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-config
+data:
+  PORT: "3003"
+  # Gateway endpoint used by services to call notification API
+  GATEWAY_URL: "http://api-gateway:5400/api/notifications"

@@ -85,20 +85,19 @@ services:
     container_name: healthcare-api-gateway
     restart: unless-stopped
     ports:
-      - "6000:5400"
+      - "5400:5400"
     environment:
       NODE_ENV: production
       PORT: 5400
-      # Gateway is stateless — no MongoDB or Kafka needed
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
-      # Service URLs use Docker service names for internal network communication
       AUTH_SERVICE_URL: http://auth-service:5000
       PATIENT_SERVICE_URL: http://patient-service:5001
       AUDIT_SERVICE_URL: http://audit-service:5002
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
       APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment-service:3001}
-      DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:3003}
+      DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:5006}
+      TELEMEDICINE_SERVICE_URL: http://telemedicine-service:5000
     depends_on:
       auth-service:
         condition: service_healthy
@@ -122,7 +121,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      # auth-service owns the auth-management database
       MONGO_URI: mongodb://mongodb:27017/auth-management
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this}
       JWT_EXPIRES_IN: 7d
@@ -149,19 +147,21 @@ services:
     container_name: healthcare-doctor-service
     restart: unless-stopped
     expose:
-      - "3003"
+      - "5006"
     ports:
-      - "3004:3003"
+      - "5006:5006"
+    env_file:
+      - doctor-service/.env
     environment:
-      NODE_ENV: production
-      PORT: 3003
-      MONGO_URI: mongodb://mongodb:27017/doctor-service
+      NODE_ENV: development
+      PORT: 5006
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/doctor_serviceDB?retryWrites=true&w=majority
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
     depends_on:
       mongodb:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5006/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -180,11 +180,10 @@ services:
     ports:
       - "5001:5001"
     env_file:
-    - patient-management-service/.env
+      - patient-management-service/.env
     environment:
       NODE_ENV: production
       PORT: 5001
-      # patient-service owns the patient-management database
       MONGO_URI: mongodb://mongodb:27017/patient-management
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
@@ -213,7 +212,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5002
-      # audit-service owns the audit-management database
       MONGO_URI: mongodb://mongodb:27017/audit-management
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
@@ -282,7 +280,6 @@ services:
       NODE_ENV: production
       PORT: 3001
       MONGO_URI: mongodb://mongodb:27017/appointment-management
-      # Use API Gateway for calling other services
       PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
       DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
       NOTIFICATION_SERVICE_URL: http://api-gateway:5400/api/notifications
@@ -297,6 +294,42 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  telemedicine-service:
+    build:
+      context: ./telemedicine-service
+      dockerfile: Dockerfile
+    container_name: healthcare-telemedicine-service
+    restart: unless-stopped
+    expose:
+      - "5000"
+    ports:
+      - "5007:5000"
+    env_file:
+      - telemedicine-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongodb:27017/telemedicine_serviceDB
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3001
+      DOCTOR_SERVICE_URL: http://api-gateway:5400
+      PATIENT_SERVICE_URL: http://patient-service:5001
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

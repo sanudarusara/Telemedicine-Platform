@@ -20,7 +20,12 @@ console.log("MongoDB URI:", process.env.MONGO_URI);
 // CORS setup
 app.use(
   cors({
-    origin: ["http://localhost:5400", "http://localhost:3000", "http://localhost:5173", "http://localhost:8082"],
+    origin: [
+      "http://localhost:5400",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:8082",
+    ],
     credentials: true,
   })
 );

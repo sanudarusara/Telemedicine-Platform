@@ -20,7 +20,7 @@ console.log("MongoDB URI:", process.env.MONGO_URI);
 // CORS setup
 app.use(
   cors({
-    origin: "http://localhost:30082",
+    origin: ["http://localhost:5400", "http://localhost:3000", "http://localhost:5173", "http://localhost:8082"],
     credentials: true,
   })
 );
@@ -28,6 +28,15 @@ app.use(
 // Middleware setup
 app.use(express.json());
 app.use(sessionMiddleware);
+
+// Health
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "doctor-service",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -45,7 +54,7 @@ mongoose
   });
 
 // Start the server
-const PORT = process.env.PORT || 8081;
-app.listen(PORT,"0.0.0.0", () => {
+const PORT = process.env.PORT || 5006;
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
 });

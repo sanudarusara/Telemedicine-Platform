@@ -24,12 +24,11 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Appointments", url: "/appointments", icon: CalendarDays },
-  { title: "Prescriptions", url: "/prescriptions", icon: FileText },
-  { title: "Video Consult", url: "/video-consultation", icon: Video },
-  { title: "Availability", url: "/dashboard", icon: Clock },
-  { title: "Profile", url: "/profile", icon: UserCircle },
+  { title: "Dashboard", url: "/doctor/dashboard", icon: LayoutDashboard },
+  { title: "Appointments", url: "/doctor/appointments", icon: CalendarDays },
+  { title: "Prescriptions", url: "/doctor/prescriptions", icon: FileText },
+  { title: "Video Consult", url: "/doctor/video-consultation", icon: Video },
+  { title: "Profile", url: "/doctor/profile", icon: UserCircle },
 ];
 
 const DashboardSidebar = () => {

@@ -1,7 +1,12 @@
 const jwt = require("jsonwebtoken");
 const Doctor = require("../models/doctor_model");
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const protect = async (req, res, next) => {
+  if (!JWT_SECRET) {
+    return res.status(500).json({ message: "JWT configuration missing" });
+  }
+
   const authHeader = req.header("Authorization");
   const token = authHeader?.startsWith("Bearer ")
     ? authHeader.split(" ")[1]
@@ -13,7 +18,7 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     console.log("Decoded JWT payload:", decoded);
 
     let doctor = await Doctor.findById(decoded.id);

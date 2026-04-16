@@ -1,9 +1,14 @@
 const jwt = require("jsonwebtoken");
 const Doctor = require("../models/doctor_model");
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Doctor registration (Sign Up)
 const registerDoctor = async (req, res) => {
   try {
+    if (!JWT_SECRET) {
+      return res.status(500).json({ message: "JWT configuration missing" });
+    }
+
     const { name, email, password, specialization, clinic, fee, phone } = req.body;
 
     // Check if doctor already exists
@@ -29,7 +34,7 @@ const registerDoctor = async (req, res) => {
 
     // Create JWT token for doctor
     const payload = { id: doctor._id, accountType: "doctor", role: doctor.role };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
 
     // Store the doctor in the session
     req.session.userId = doctor._id;
@@ -45,6 +50,10 @@ const registerDoctor = async (req, res) => {
 // Doctor login (Sign In)
 const loginDoctor = async (req, res) => {
   try {
+    if (!JWT_SECRET) {
+      return res.status(500).json({ message: "JWT configuration missing" });
+    }
+
     const { email, password } = req.body;
 
     // Find doctor by email
@@ -61,7 +70,7 @@ const loginDoctor = async (req, res) => {
 
     // Create JWT token
     const payload = { id: doctor._id, accountType: "doctor", role: doctor.role };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
 
     // Store JWT in session
     req.session.userId = doctor._id;

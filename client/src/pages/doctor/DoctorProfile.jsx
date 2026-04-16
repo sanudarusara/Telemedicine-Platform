@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import DoctorDashLayout from "@/components/DoctorDashLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -274,7 +274,7 @@ const Profile = () => {
   }, [doctorMeta.createdAt]);
 
   return (
-    <DashboardLayout title="Profile">
+    <DoctorDashLayout title="Profile">
       <div className="space-y-8 p-3 md:p-5 xl:p-6">
         <section className={`${pageShell} overflow-hidden p-6 md:p-8`}>
           <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
@@ -712,7 +712,7 @@ const Profile = () => {
           </form>
         )}
       </div>
-    </DashboardLayout>
+    </DoctorDashLayout>
   );
 };
 

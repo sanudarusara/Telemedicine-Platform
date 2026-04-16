@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import DoctorDashLayout from "@/components/DoctorDashLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,7 +168,7 @@ const Prescriptions = () => {
   };
 
   return (
-    <DashboardLayout title="Prescriptions">
+    <DoctorDashLayout title="Prescriptions">
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -456,7 +456,7 @@ const Prescriptions = () => {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </DoctorDashLayout>
   );
 };
 

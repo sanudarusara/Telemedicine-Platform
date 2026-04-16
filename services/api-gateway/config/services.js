@@ -6,15 +6,21 @@
  * In local development they fall back to localhost.
  */
 module.exports = {
-  AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL || 'http://localhost:5000',
-  PATIENT_SERVICE_URL: process.env.PATIENT_SERVICE_URL || 'http://localhost:5001',
-  AUDIT_SERVICE_URL: process.env.AUDIT_SERVICE_URL || 'http://localhost:5002',
-  NOTIFICATION_SERVICE_URL: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5003',
-  PAYMENT_SERVICE_URL: process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004',
-  APPOINTMENT_SERVICE_URL: process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3001',
-  DOCTOR_SERVICE_URL: process.env.DOCTOR_SERVICE_URL || 'http://localhost:3003',
-  AI_SYMPTOM_SERVICE_URL: process.env.AI_SYMPTOM_SERVICE_URL || 'http://localhost:5005',
+  AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL || "http://localhost:5000",
+  PATIENT_SERVICE_URL: process.env.PATIENT_SERVICE_URL || "http://localhost:5001",
+  AUDIT_SERVICE_URL: process.env.AUDIT_SERVICE_URL || "http://localhost:5002",
+  NOTIFICATION_SERVICE_URL:
+    process.env.NOTIFICATION_SERVICE_URL || "http://localhost:5003",
+  PAYMENT_SERVICE_URL: process.env.PAYMENT_SERVICE_URL || "http://localhost:5004",
+  APPOINTMENT_SERVICE_URL:
+    process.env.APPOINTMENT_SERVICE_URL || "http://localhost:3001",
+  AI_SYMPTOM_SERVICE_URL:
+    process.env.AI_SYMPTOM_SERVICE_URL || "http://localhost:5005",
+  DOCTOR_SERVICE_URL: process.env.DOCTOR_SERVICE_URL || "http://localhost:5006",
+  TELEMEDICINE_SERVICE_URL:
+    process.env.TELEMEDICINE_SERVICE_URL || "http://localhost:5007",
 
   // Internal API key for secure service-to-service communication
-  INTERNAL_API_KEY: process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
+  INTERNAL_API_KEY:
+    process.env.INTERNAL_API_KEY || "gateway-secret-key-change-in-production",
 };

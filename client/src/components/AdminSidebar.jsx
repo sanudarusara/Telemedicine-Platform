@@ -1,16 +1,14 @@
 import {
   LayoutDashboard,
-  CalendarDays,
-  FileText,
-  Video,
-  Clock,
-  UserCircle,
+  Users,
+  UserCheck,
+  Activity,
+  ShieldCheck,
   Heart,
   LogOut,
-  Activity,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink.jsx";
-import { useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -24,19 +22,24 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navItems = [
-  { title: "Dashboard", url: "/doctor/dashboard", icon: LayoutDashboard },
-  { title: "Appointments", url: "/doctor/appointments", icon: CalendarDays },
-  { title: "Prescriptions", url: "/doctor/prescriptions", icon: FileText },
-  { title: "Video Consult", url: "/doctor/video-consultation", icon: Video },
-  { title: "Profile", url: "/doctor/profile", icon: UserCircle },
-  { title: "Audit Logs", url: "/doctor/audit", icon: Activity },
+const adminNavItems = [
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "User Management", url: "/admin/users", icon: Users },
+  { title: "Patient Records", url: "/admin/patients", icon: UserCheck },
+  { title: "Audit Logs", url: "/admin/audit", icon: Activity },
 ];
 
-const DashboardSidebar = () => {
+const AdminSidebar = () => {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+    navigate("/login");
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
@@ -44,15 +47,20 @@ const DashboardSidebar = () => {
         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
           <Heart className="w-4 h-4 text-primary" />
         </div>
-        {!collapsed && <span className="font-bold text-foreground text-lg">MediCare</span>}
+        {!collapsed && (
+          <div>
+            <span className="font-bold text-foreground text-sm block">MediCare</span>
+            <span className="text-[10px] text-muted-foreground">Admin Panel</span>
+          </div>
+        )}
       </div>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>Administration</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {adminNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -76,10 +84,14 @@ const DashboardSidebar = () => {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <NavLink to="/" className="text-destructive hover:bg-destructive/10">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex w-full items-center rounded-md px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 {!collapsed && <span>Sign Out</span>}
-              </NavLink>
+              </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -88,4 +100,4 @@ const DashboardSidebar = () => {
   );
 };
 
-export default DashboardSidebar;
+export default AdminSidebar;

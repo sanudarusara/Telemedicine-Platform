@@ -7,6 +7,9 @@ import {
   UserCircle,
   Heart,
   LogOut,
+  FolderOpen,
+  ClipboardList,
+  Pill,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink.jsx";
 import { useLocation } from "react-router-dom";
@@ -27,9 +30,11 @@ const patientNavItems = [
   { title: "Dashboard", url: "/patient-dashboard", icon: LayoutDashboard },
   { title: "Appointments", url: "/appointments", icon: CalendarDays },
   { title: "Consultation", url: "/appointments/consultation", icon: CalendarDays },
-  { title: "Prescriptions", url: "/prescriptions", icon: FileText },
+  { title: "My Profile", url: "/patient/profile", icon: UserCircle },
+  { title: "Medical History", url: "/patient/medical-history", icon: ClipboardList },
+  { title: "Reports", url: "/patient/reports", icon: FolderOpen },
+  { title: "Prescriptions", url: "/patient/prescriptions", icon: Pill },
   { title: "Video Consult", url: "/video-consultation", icon: Video },
-  { title: "Profile", url: "/profile", icon: UserCircle },
 ];
 
 const PatientDashboardSidebar = () => {

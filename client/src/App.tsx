@@ -32,6 +32,20 @@ import ConsultationPage from "./pages/appointments/ConsultationPage";
 import Prescriptions from "./pages/Prescriptions.jsx";
 import Profile from "./pages/Profile.jsx";
 
+// ── my-services: Patient Management ──────────────────────────────────────────
+import PatientProfilePage from "./pages/my-services/patient/PatientProfilePage.jsx";
+import PatientMedicalHistory from "./pages/my-services/patient/PatientMedicalHistory.jsx";
+import PatientReports from "./pages/my-services/patient/PatientReports.jsx";
+import PatientPrescriptions from "./pages/my-services/patient/PatientPrescriptions.jsx";
+
+// ── my-services: Admin ────────────────────────────────────────────────────────
+import AdminDashboard from "./pages/my-services/admin/AdminDashboard.jsx";
+import AdminUsers from "./pages/my-services/admin/AdminUsers.jsx";
+import AdminPatients from "./pages/my-services/admin/AdminPatients.jsx";
+
+// ── my-services: Audit ────────────────────────────────────────────────────────
+import AuditLogs from "./pages/my-services/audit/AuditLogs.tsx";
+
 const queryClient = new QueryClient();
 
 const PaymentSuccess = () => <h2>Payment Successful</h2>;
@@ -53,6 +67,19 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 const ProtectedDoctorRoute = ({ children }: ProtectedRouteProps) => {
   const token = localStorage.getItem("doctor_token") || "";
   return token ? <>{children}</> : <Navigate to="/doctor/login" replace />;
+};
+
+const ProtectedPatientRoute = ({ children }: ProtectedRouteProps) => {
+  const token = localStorage.getItem("token") || "";
+  return token ? <>{children}</> : <Navigate to="/patient-login" replace />;
+};
+
+const ProtectedAdminRoute = ({ children }: ProtectedRouteProps) => {
+  const token = localStorage.getItem("token") || "";
+  const role = (localStorage.getItem("role") || "").toUpperCase();
+  if (!token) return <Navigate to="/patient-login" replace />;
+  if (role !== "ADMIN") return <Navigate to="/patient-dashboard" replace />;
+  return <>{children}</>;
 };
 
 const App = () => (
@@ -158,6 +185,83 @@ const App = () => (
           />
 
           <Route path="*" element={<NotFound />} />
+
+          {/* ── Patient Management Service ─────────────────────────────────── */}
+          <Route
+            path="/patient/profile"
+            element={
+              <ProtectedPatientRoute>
+                <PatientProfilePage />
+              </ProtectedPatientRoute>
+            }
+          />
+          <Route
+            path="/patient/medical-history"
+            element={
+              <ProtectedPatientRoute>
+                <PatientMedicalHistory />
+              </ProtectedPatientRoute>
+            }
+          />
+          <Route
+            path="/patient/reports"
+            element={
+              <ProtectedPatientRoute>
+                <PatientReports />
+              </ProtectedPatientRoute>
+            }
+          />
+          <Route
+            path="/patient/prescriptions"
+            element={
+              <ProtectedPatientRoute>
+                <PatientPrescriptions />
+              </ProtectedPatientRoute>
+            }
+          />
+
+          {/* ── Admin routes ───────────────────────────────────────────────── */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedAdminRoute>
+                <AdminDashboard />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedAdminRoute>
+                <AdminUsers />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/patients"
+            element={
+              <ProtectedAdminRoute>
+                <AdminPatients />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedAdminRoute>
+                <AuditLogs />
+              </ProtectedAdminRoute>
+            }
+          />
+          {/* Doctors also have read access to audit logs */}
+          <Route
+            path="/doctor/audit"
+            element={
+              <ProtectedDoctorRoute>
+                <AuditLogs />
+              </ProtectedDoctorRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

@@ -2,6 +2,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardSidebar from "./DashboardSidebar";
 import PatientDashboardSidebar from "./PatientDashboardSidebar";
+import AdminSidebar from "./AdminSidebar";
 import { Bell, CheckCircle, XCircle, Calendar, Clock, MapPin, User, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -37,7 +38,12 @@ const DashboardLayout = ({ children, title }) => {
     }
   }, []);
 
-  const SidebarComponent = role === "patient" ? PatientDashboardSidebar : DashboardSidebar;
+  const SidebarComponent =
+    role === "patient"
+      ? PatientDashboardSidebar
+      : role === "admin"
+      ? AdminSidebar
+      : DashboardSidebar;
 
   return (
     <SidebarProvider>

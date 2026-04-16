@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 
 # When built from repo root context, copy the service package files from the subfolder
 COPY appointment-service/package*.json ./
-RUN npm ci --only=production
+RUN npm install --production --no-audit --no-fund
 
 # Copy service source
 COPY appointment-service .

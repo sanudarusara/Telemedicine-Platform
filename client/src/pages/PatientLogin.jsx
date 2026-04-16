@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Heart, Mail, Lock, User } from "lucide-react";
 import heroImg from "@/assets/healthcare-hero.png";
 
-// FIXED: Changed from port 30081 to 5400 (gateway port)
+// Default to gateway on port 5400 (browser blocks some ports like 6000)
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
 
 const PatientLogin = () => {
@@ -39,6 +39,7 @@ const PatientLogin = () => {
     try {
       setLoading(true);
       console.log("Attempting login with:", { email });
+      console.log("API URL:", `${API_BASE_URL}/auth/login`);
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
@@ -96,6 +97,7 @@ const PatientLogin = () => {
     try {
       setLoading(true);
       console.log("Attempting registration with:", { name, email, password: "***" });
+      console.log("API URL:", `${API_BASE_URL}/auth/register`);
 
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
@@ -128,7 +130,6 @@ const PatientLogin = () => {
         localStorage.setItem("role", (user.role || "patient").toLowerCase());
       }
 
-      // After successful registration, navigate to patient dashboard (auto-signed-in)
       navigate('/patient-dashboard');
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -138,7 +139,6 @@ const PatientLogin = () => {
     }
   };
 
-  // FIXED: Conditional form submission handler
   const handleSubmit = (e) => {
     if (isRegistering) {
       handleRegister(e);
@@ -180,7 +180,6 @@ const PatientLogin = () => {
             </CardHeader>
 
             <CardContent className="px-6 pb-6">
-              {/* FIXED: Using handleSubmit instead of handleLogin directly */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 {error && (
                   <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -256,8 +255,8 @@ const PatientLogin = () => {
               className="text-sm text-primary hover:underline"
               onClick={() => {
                 setIsRegistering((s) => !s);
-                setError(""); // Clear error when switching modes
-                setName(""); // Clear name when switching to login
+                setError("");
+                setName("");
               }}
             >
               {isRegistering ? 'Back to Sign in' : "Don't have an account? Register"}

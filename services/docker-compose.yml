@@ -85,7 +85,7 @@ services:
     container_name: healthcare-api-gateway
     restart: unless-stopped
     ports:
-      - "6000:5400"
+      - "5400:5400"
     environment:
       NODE_ENV: production
       PORT: 5400
@@ -99,6 +99,7 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
       APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment-service:3001}
       DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:3003}
+      PAYMENT_SERVICE_URL: http://payment-service:5004
     depends_on:
       auth-service:
         condition: service_healthy
@@ -301,6 +302,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - healthcare-network
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: healthcare-payment-service
+    restart: unless-stopped
+    expose:
+      - "5004"
+    ports:
+      - "5004:5004"
+    env_file:
+      - payment-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5004
     networks:
       - healthcare-network
 

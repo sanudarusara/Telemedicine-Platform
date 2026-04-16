@@ -54,10 +54,10 @@ class AppointmentService {
       throw new Error('Patient not found');
     }
     
-    // Extract patient name properly
-    let patientName = patient.name || patient.fullName || patient.full_name || patient.displayName;
+    // Extract patient name properly. Prefer a name provided by the caller (logged-in user)
+    let patientName = appointmentData.patientName || patient.name || patient.fullName || patient.full_name || patient.displayName;
     if (!patientName || patientName === patient.id || patientName === appointmentData.patientId) {
-      patientName = `Patient ${appointmentData.patientId.slice(-6)}`;
+      patientName = `Patient ${String(appointmentData.patientId || '').slice(-6)}`;
     }
     
     const patientEmail = patient.email || patient.emailAddress || '';

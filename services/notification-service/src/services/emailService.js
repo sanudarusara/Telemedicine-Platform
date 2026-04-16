@@ -63,7 +63,24 @@ class EmailService {
 
     getAppointmentCreatedTemplate(appointment, userType) {
         const isPatient = userType === 'patient';
-        const name = isPatient ? appointment.patientName : appointment.doctorName;
+        const resolveName = (appt, forPatient) => {
+            const rawName = forPatient ? appt.patientName : appt.doctorName;
+            if (rawName && String(rawName).trim() && !String(rawName).toLowerCase().startsWith('patient')) return rawName;
+            // try common fallback fields
+            if (forPatient && appt.patientEmail) {
+                const local = String(appt.patientEmail).split('@')[0];
+                return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+            if (!forPatient && appt.doctorEmail) {
+                const local = String(appt.doctorEmail).split('@')[0];
+                return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+            // last resort: use id suffix
+            const id = forPatient ? (appt.patientId || appt.patient_id) : (appt.doctorId || appt.doctor_id);
+            if (id) return `${forPatient ? 'Patient' : 'Dr.'} ${String(id).slice(-6)}`;
+            return forPatient ? 'Patient' : 'Doctor';
+        };
+        const name = resolveName(appointment, isPatient);
         const otherParty = isPatient ? appointment.doctorName : appointment.patientName;
         const appointmentDate = new Date(appointment.date).toLocaleString();
         
@@ -123,7 +140,22 @@ class EmailService {
 
     getAppointmentStatusUpdateTemplate(appointment, userType, newStatus) {
         const isPatient = userType === 'patient';
-        const name = isPatient ? appointment.patientName : appointment.doctorName;
+        const resolveName = (appt, forPatient) => {
+            const rawName = forPatient ? appt.patientName : appt.doctorName;
+            if (rawName && String(rawName).trim() && !String(rawName).toLowerCase().startsWith('patient')) return rawName;
+            if (forPatient && appt.patientEmail) {
+                const local = String(appt.patientEmail).split('@')[0];
+                return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+            if (!forPatient && appt.doctorEmail) {
+                const local = String(appt.doctorEmail).split('@')[0];
+                return local.replace(/\.|_|-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+            const id = forPatient ? (appt.patientId || appt.patient_id) : (appt.doctorId || appt.doctor_id);
+            if (id) return `${forPatient ? 'Patient' : 'Dr.'} ${String(id).slice(-6)}`;
+            return forPatient ? 'Patient' : 'Doctor';
+        };
+        const name = resolveName(appointment, isPatient);
         
         let statusMessage = '';
         switch(newStatus) {

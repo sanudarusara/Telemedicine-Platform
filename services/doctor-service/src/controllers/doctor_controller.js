@@ -23,13 +23,7 @@ function normalizeHolidayDates(holidayDates) {
     return [];
   }
 
-  return [
-    ...new Set(
-      holidayDates
-        .map((d) => String(d).trim())
-        .filter(Boolean)
-    ),
-  ];
+  return [...new Set(holidayDates.map((d) => String(d).trim()).filter(Boolean))];
 }
 
 function isValidHHMM(value) {
@@ -42,7 +36,7 @@ const getProfile = async (req, res) => {
     console.log("req.doctor in getProfile:", req.doctor);
 
     if (!req.doctor || !req.doctor._id) {
-      return res.status(400).json({ message: "Doctor ID not found in request" });
+      return res.status(401).json({ message: "Doctor authentication failed" });
     }
 
     const doctor = await Doctor.findById(req.doctor._id).select("-password");
@@ -51,10 +45,12 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    res.status(200).json(doctor);
+    return res.status(200).json(doctor);
   } catch (error) {
     console.error("Error fetching doctor profile:", error);
-    res.status(500).json({ message: "Error fetching doctor profile" });
+    return res.status(500).json({
+      message: error.message || "Error fetching doctor profile",
+    });
   }
 };
 
@@ -63,7 +59,7 @@ const updateProfile = async (req, res) => {
     console.log("req.doctor in updateProfile:", req.doctor);
 
     if (!req.doctor || !req.doctor._id) {
-      return res.status(400).json({ message: "Doctor ID not found in request" });
+      return res.status(401).json({ message: "Doctor authentication failed" });
     }
 
     const {
@@ -104,7 +100,7 @@ const updateProfile = async (req, res) => {
       name,
       specialization,
       clinic,
-      fee,
+      fee: Number(fee),
       phone,
     };
 
@@ -138,10 +134,12 @@ const updateProfile = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    res.status(200).json(updatedDoctor);
+    return res.status(200).json(updatedDoctor);
   } catch (error) {
     console.error("Error updating doctor profile:", error);
-    res.status(500).json({ message: "Error updating doctor profile" });
+    return res.status(500).json({
+      message: error.message || "Error updating doctor profile",
+    });
   }
 };
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import DoctorDashLayout from "@/components/DoctorDashLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,37 +61,57 @@ const Appointments = () => {
   };
 
   const fetchAppointments = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const token = getDoctorToken();
-      if (!token) {
-        throw new Error("Doctor token missing. Please log in again.");
-      }
+  try {
+    setLoading(true);
+    setError("");
 
-      const response = await fetch(`${API_BASE_URL}/doctors/appointments`, {
+    const token = getDoctorToken();
+
+    if (!token) {
+      throw new Error("Doctor token missing. Please log in again.");
+    }
+
+    // Decode doctor id from JWT token
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const doctorId = payload.id || payload._id || payload.doctorId;
+
+    if (!doctorId) {
+      throw new Error("Doctor ID not found in token.");
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/appointments/doctor/${doctorId}/pending`,
+      {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-      });
-
-      const data = await parseResponse(response);
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Request failed with status ${response.status}`);
       }
+    );
 
-      const appointmentList = Array.isArray(data?.appointments) ? data.appointments : [];
-      setAppointments(appointmentList);
-      setSelectedId(appointmentList[0]?._id || null);
-    } catch (err) {
-      setError(err.message || "Error fetching appointments");
-    } finally {
-      setLoading(false);
+    const data = await parseResponse(response);
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || `Request failed with status ${response.status}`
+      );
     }
-  };
+
+    const appointmentList = Array.isArray(data?.appointments)
+      ? data.appointments
+      : Array.isArray(data)
+      ? data
+      : [];
+
+    setAppointments(appointmentList);
+    setSelectedId(appointmentList[0]?._id || null);
+  } catch (err) {
+    setError(err.message || "Error fetching appointments");
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchAppointments();
@@ -267,7 +287,7 @@ const Appointments = () => {
   const filterOptions = ["all", "pending", "confirmed", "cancelled"];
 
   return (
-    <DashboardLayout title="Appointments">
+    <DoctorDashLayout title="Appointments">
       <div className="space-y-8 p-3 md:p-5 xl:p-6">
         <section className={`${pageShell} overflow-hidden p-6 md:p-8`}>
           <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
@@ -658,7 +678,7 @@ const Appointments = () => {
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </DoctorDashLayout>
   );
 };
 

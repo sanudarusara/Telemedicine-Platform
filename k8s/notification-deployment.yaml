@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: healthcare-platform-notification-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-config
+                  key: PORT
+            - name: CLIENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-config
+                  key: CLIENT_URL
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: notification-secret
+                  key: MONGODB_URI
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: healthcare-platform-notification-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: notification-config
+                  key: PORT
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: notification-secret
+                  key: MONGO_URI
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: notification-secret
+                  key: INTERNAL_API_KEY
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 15
+            periodSeconds: 20

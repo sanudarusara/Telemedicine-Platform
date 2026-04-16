@@ -1,0 +1,15 @@
+﻿{
+  "patientId":"69e07e6b217fdfd0b52b7142",
+  "patientName":"Asheni Imalsha Madhushani",
+  "patientEmail":"asheni@gmail.com",
+  "patientPhone":"+94762047659",
+  "doctorId":"69dff731debf82d1b75c7f0d",
+  "doctorName":"Dr. Hemantha Dias",
+  "doctorEmail":"hemantha.dias@example.com",
+  "doctorPhone":"+94771234567",
+  "specialty":"General Medicine",
+  "date":"2026-04-19T00:00:00.000Z",
+  "timeSlot":"02:00 PM",
+  "consultationType":"clinic",
+  "symptoms":"Created by assistant for verification"
+}

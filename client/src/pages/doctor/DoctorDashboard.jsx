@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import DoctorDashLayout from "@/components/DoctorDashLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -196,7 +196,7 @@ const Dashboard = () => {
   }, [appointments, prescriptions, todayAppointments]);
 
   return (
-    <DashboardLayout title="Dashboard">
+    <DoctorDashLayout title="Dashboard">
       <div className="space-y-6">
         {error && (
           <Card className="border-destructive/30 bg-destructive/10">
@@ -342,7 +342,7 @@ const Dashboard = () => {
           </>
         )}
       </div>
-    </DashboardLayout>
+    </DoctorDashLayout>
   );
 };
 

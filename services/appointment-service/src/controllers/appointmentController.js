@@ -78,6 +78,16 @@ class AppointmentController {
         else if (appointmentData.userId) appointmentData.patientId = appointmentData.userId;
       }
 
+      // Prefer using the logged-in user's name for patientName when available
+      if (!appointmentData.patientName) {
+        const headerName = req.headers['x-user-name'] || req.headers['x-user-name']?.toString() || null;
+        if (headerName && String(headerName).trim()) {
+          appointmentData.patientName = String(headerName).trim();
+        } else if (req.user && (req.user.name || req.user.fullName || req.user.full_name || req.user.displayName)) {
+          appointmentData.patientName = req.user.name || req.user.fullName || req.user.full_name || req.user.displayName;
+        }
+      }
+
       // Joi schema does not include file objects; validate only the expected fields
       const dataToValidate = Object.assign({}, appointmentData);
       if (dataToValidate.reportFile) delete dataToValidate.reportFile;

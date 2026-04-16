@@ -9,7 +9,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "*",
+    origin: ["http://localhost:5400", "http://localhost:3000", "http://localhost:5173", "http://localhost:8082"],
     credentials: true,
   })
 );
@@ -20,14 +20,22 @@ app.get("/", (req, res) => {
   res.send("Telemedicine Service is running");
 });
 
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "telemedicine-service",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.use("/api/video", videoRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("Telemedicine MongoDB connected");
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT,"0.0.0.0", () => {
+    const PORT = process.env.PORT || 5007;
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`Telemedicine service running on port ${PORT}`);
     });
   })

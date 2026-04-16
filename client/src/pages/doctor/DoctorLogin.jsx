@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,13 +70,12 @@ const Login = () => {
       }
 
       localStorage.setItem("doctor_token", data.token);
-      localStorage.setItem("token", data.token);
       localStorage.setItem("role", "doctor");
 
-      navigate("/dashboard", { replace: true });
+      navigate("/doctor/dashboard", { replace: true });
     } catch (err) {
       clearStoredAuth();
-      setError(err.message || "Login failed");
+      setError(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -97,12 +96,18 @@ const Login = () => {
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-2">
-              <Heart className="w-8 h-8 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              MediCare
-            </h1>
+            <Link
+              to="/doctor/login"
+              className="inline-flex flex-col items-center justify-center"
+            >
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-2">
+                <Heart className="w-8 h-8 text-primary" />
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                MediCare
+              </h1>
+            </Link>
+
             <p className="text-muted-foreground text-sm">
               Doctor portal sign in
             </p>

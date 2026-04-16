@@ -89,7 +89,7 @@ const Home = () => {
           {/* Consultation */}
           <Card
             className="cursor-pointer hover:shadow-lg transition"
-            onClick={() => navigate("/doctor-login")}
+            onClick={() => navigate("/doctor/login")}
           >
             <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
               <div className="h-12 w-12 flex items-center justify-center rounded-xl bg-emerald-100">

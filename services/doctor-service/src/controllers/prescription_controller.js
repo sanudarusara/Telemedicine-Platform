@@ -17,6 +17,10 @@ const createPrescription = async (req, res) => {
     console.log("Create prescription body:", req.body);
     console.log("Logged doctor:", req.doctor);
 
+    if (!req.doctor || !req.doctor._id) {
+      return res.status(401).json({ message: "Doctor authentication failed" });
+    }
+
     if (
       !appointmentNo ||
       !diagnosis ||
@@ -37,20 +41,6 @@ const createPrescription = async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    const existingPrescription = await Prescription.findOne({
-      appointmentId: appointment._id,
-    });
-
-    if (existingPrescription) {
-      return res.status(400).json({
-        message: "Prescription already exists for this appointment",
-      });
-    }
-
-    if (!req.doctor || !req.doctor._id) {
-      return res.status(401).json({ message: "Doctor authentication failed" });
-    }
-
     if (!appointment.doctorId) {
       return res.status(400).json({
         message: "Appointment has no doctor assigned",
@@ -60,6 +50,16 @@ const createPrescription = async (req, res) => {
     if (appointment.doctorId.toString() !== req.doctor._id.toString()) {
       return res.status(403).json({
         message: "You are not allowed to create a prescription for this appointment",
+      });
+    }
+
+    const existingPrescription = await Prescription.findOne({
+      appointmentId: appointment._id,
+    });
+
+    if (existingPrescription) {
+      return res.status(400).json({
+        message: "Prescription already exists for this appointment",
       });
     }
 
@@ -123,7 +123,10 @@ const getPrescriptions = async (req, res) => {
       .populate("appointmentId")
       .sort({ createdAt: -1 });
 
-    return res.status(200).json(prescriptions);
+    return res.status(200).json({
+      count: prescriptions.length,
+      prescriptions,
+    });
   } catch (error) {
     console.error("Get prescriptions error:", error);
     return res.status(500).json({
@@ -137,6 +140,10 @@ const getPrescriptionById = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!req.doctor || !req.doctor._id) {
+      return res.status(401).json({ message: "Doctor authentication failed" });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid prescription id" });
     }
@@ -149,13 +156,13 @@ const getPrescriptionById = async (req, res) => {
       return res.status(404).json({ message: "Prescription not found" });
     }
 
-    if (!req.doctor || !req.doctor._id) {
-      return res.status(401).json({ message: "Doctor authentication failed" });
-    }
-
     const prescriptionDoctorId =
       prescription.doctorId?._id?.toString?.() ||
       prescription.doctorId?.toString?.();
+
+    if (!prescriptionDoctorId) {
+      return res.status(400).json({ message: "Prescription doctor is missing" });
+    }
 
     if (prescriptionDoctorId !== req.doctor._id.toString()) {
       return res.status(403).json({ message: "Access denied" });

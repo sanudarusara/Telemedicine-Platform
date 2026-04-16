@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
+import DoctorDashLayout from "@/components/DoctorDashLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,7 +149,7 @@ const VideoConsultation = () => {
   };
 
   return (
-    <DashboardLayout title="Video Consultation">
+    <DoctorDashLayout title="Video Consultation">
       <div className="space-y-6">
         {error && (
           <Card className="border-destructive/30 bg-destructive/5">
@@ -329,7 +329,7 @@ const VideoConsultation = () => {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </DoctorDashLayout>
   );
 };
 

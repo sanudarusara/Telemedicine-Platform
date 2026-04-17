@@ -6,9 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Heart, Mail, Lock, User } from "lucide-react";
 import heroImg from "@/assets/healthcare-hero.png";
-
-// Default to gateway on port 5400 (browser blocks some ports like 6000)
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
+import { useAuth } from "@/context/AuthContext";
 
 const PatientLogin = () => {
   const [email, setEmail] = useState("");
@@ -18,14 +16,7 @@ const PatientLogin = () => {
   const [error, setError] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const navigate = useNavigate();
-
-  const parseResponse = async (response) => {
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
-    }
-    return null;
-  };
+  const auth = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -38,43 +29,16 @@ const PatientLogin = () => {
 
     try {
       setLoading(true);
-      console.log("Attempting login with:", { email });
-      console.log("API URL:", `${API_BASE_URL}/auth/login`);
-
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      const data = await parseResponse(response);
-      console.log("Login response:", data);
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Login failed with status ${response.status}`);
+      await auth.login(email, password);
+      // Navigate based on role stored by AuthContext
+      const role = (localStorage.getItem("role") || "").toLowerCase();
+      if (role === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/patient-dashboard");
       }
-
-      const token = data?.data?.token || data?.token;
-      const user = data?.data?.user || data?.user;
-      
-      if (token) {
-        localStorage.setItem("token", token);
-      }
-      if (user) {
-        localStorage.setItem("user", JSON.stringify(user));
-        localStorage.setItem("role", (user.role || "patient").toLowerCase());
-      }
-
-      navigate("/patient-dashboard");
     } catch (err) {
       setError(err.message || "Login failed");
-      console.error("Login error:", err);
     } finally {
       setLoading(false);
     }
@@ -96,44 +60,16 @@ const PatientLogin = () => {
 
     try {
       setLoading(true);
-      console.log("Attempting registration with:", { name, email, password: "***" });
-      console.log("API URL:", `${API_BASE_URL}/auth/register`);
-
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-          role: 'PATIENT'
-        }),
-      });
-
-      const data = await parseResponse(response);
-      console.log("Registration response:", data);
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Register failed with status ${response.status}`);
+      await auth.register(name, email, password);
+      // AuthContext stores token; navigate to dashboard
+      const roleAfter = (localStorage.getItem("role") || "").toLowerCase();
+      if (roleAfter === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/patient-dashboard");
       }
-
-      const token = data?.data?.token || data?.token;
-      const user = data?.data?.user || data?.user;
-      
-      if (token) {
-        localStorage.setItem("token", token);
-      }
-      if (user) {
-        localStorage.setItem("user", JSON.stringify(user));
-        localStorage.setItem("role", (user.role || "patient").toLowerCase());
-      }
-
-      navigate('/patient-dashboard');
     } catch (err) {
       setError(err.message || "Registration failed");
-      console.error("Registration error:", err);
     } finally {
       setLoading(false);
     }

@@ -21,6 +21,11 @@ const authenticate = (req, res, next) => {
     });
   }
 
+  // Allow unauthenticated health checks (used by the gateway status page)
+  if (req.method === 'GET' && req.path === '/health') {
+    return next();
+  }
+
   // Allow trusted service-to-gateway calls using the internal API key.
   const incomingApiKey = req.headers["x-api-key"] || req.headers["x_api_key"];
   if (incomingApiKey && incomingApiKey === process.env.INTERNAL_API_KEY) {

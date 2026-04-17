@@ -1,41 +1,46 @@
-const jwt = require("jsonwebtoken");
 const Doctor = require("../models/doctor_model");
-const JWT_SECRET = process.env.JWT_SECRET;
 
+/**
+ * Auth middleware that trusts the API Gateway.
+ * The gateway verifies the JWT (issued by auth-service) and injects
+ * x-user-email / x-user-id / x-user-role as trusted headers.
+ * We use the email to locate the corresponding doctor profile.
+ */
 const protect = async (req, res, next) => {
-  if (!JWT_SECRET) {
-    return res.status(500).json({ message: "JWT configuration missing" });
+  // Gateway must identify itself
+  const gatewayKey = req.headers["x-api-key"];
+  const EXPECTED_KEY = process.env.INTERNAL_API_KEY;
+
+  if (!gatewayKey || (EXPECTED_KEY && gatewayKey !== EXPECTED_KEY)) {
+    return res.status(401).json({ message: "Unauthorized: missing gateway key" });
   }
 
-  const authHeader = req.header("Authorization");
-  const token = authHeader?.startsWith("Bearer ")
-    ? authHeader.split(" ")[1]
-    : null;
+  const userEmail = req.headers["x-user-email"];
+  const userRole  = req.headers["x-user-role"];
 
-  if (!token) {
-    console.log("No token found in Authorization header");
-    return res.status(401).json({ message: "No token, authorization denied" });
+  if (!userEmail) {
+    return res.status(401).json({ message: "No authenticated user context" });
+  }
+
+  if (userRole && userRole.toUpperCase() !== "DOCTOR") {
+    return res.status(403).json({ message: "Access restricted to doctors" });
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    console.log("Decoded JWT payload:", decoded);
-
-    let doctor = await Doctor.findById(decoded.id);
-
-    if (!doctor) {
-      doctor = await Doctor.findOne({ userId: decoded.id });
-    }
+    const doctor = await Doctor.findOne({ email: userEmail });
 
     if (!doctor) {
       return res.status(404).json({ message: "Doctor profile not found" });
     }
 
     req.doctor = doctor;
+    // Expose the auth-service userId (from gateway header) so controllers
+    // can query appointments/prescriptions that were created with the auth userId
+    req.doctorAuthId = userEmail ? req.headers['x-user-id'] || null : null;
     next();
   } catch (err) {
-    console.log("Error verifying token:", err);
-    return res.status(401).json({ message: "Token is not valid" });
+    console.error("Error in doctor auth middleware:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 

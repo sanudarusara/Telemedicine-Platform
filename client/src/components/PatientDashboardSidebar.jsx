@@ -10,9 +10,11 @@ import {
   FolderOpen,
   ClipboardList,
   Pill,
+  Brain,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink.jsx";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +36,7 @@ const patientNavItems = [
   { title: "Medical History", url: "/patient/medical-history", icon: ClipboardList },
   { title: "Reports", url: "/patient/reports", icon: FolderOpen },
   { title: "Prescriptions", url: "/patient/prescriptions", icon: Pill },
+  { title: "AI Symptom Check", url: "/patient/ai-symptoms", icon: Brain },
   { title: "Video Consult", url: "/video-consultation", icon: Video },
 ];
 
@@ -41,6 +44,7 @@ const PatientDashboardSidebar = () => {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { logout } = useAuth();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
@@ -80,10 +84,14 @@ const PatientDashboardSidebar = () => {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <NavLink to="/" className="text-destructive hover:bg-destructive/10">
+              <button
+                type="button"
+                onClick={logout}
+                className="flex w-full items-center rounded-md px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 {!collapsed && <span>Sign Out</span>}
-              </NavLink>
+              </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -10,7 +10,7 @@ module.exports = {
   PATIENT_SERVICE_URL: process.env.PATIENT_SERVICE_URL || "http://localhost:5001",
   AUDIT_SERVICE_URL: process.env.AUDIT_SERVICE_URL || "http://localhost:5002",
   NOTIFICATION_SERVICE_URL:
-    process.env.NOTIFICATION_SERVICE_URL || "http://localhost:5003",
+    process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3002",
   PAYMENT_SERVICE_URL: process.env.PAYMENT_SERVICE_URL || "http://localhost:5004",
   APPOINTMENT_SERVICE_URL:
     process.env.APPOINTMENT_SERVICE_URL || "http://localhost:3001",

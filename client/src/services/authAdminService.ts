@@ -1,25 +1,11 @@
 /**
  * Auth / Admin Service API client
- * Communicates through the API Gateway at /api/auth
+ * All requests route through the API Gateway at /api/auth
  */
 
-const API_BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "");
+import apiClient, { extractErrorMessage } from "@/services/api/apiClient";
 
-const getToken = (): string =>
-  localStorage.getItem("token") || localStorage.getItem("doctor_token") || "";
-
-const authHeaders = (): HeadersInit => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-});
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || data?.error || "Request failed");
-  return data;
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AuthUser {
   _id: string;
@@ -36,16 +22,27 @@ export interface LoginResponse {
   user: AuthUser;
 }
 
-// ─── Public ───────────────────────────────────────────────────────────────────
+// ── Helper ────────────────────────────────────────────────────────────────────
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await handleResponse<{ success: boolean; data: LoginResponse }>(res);
-  return data.data ?? (data as unknown as LoginResponse);
+function throwErr(err: unknown): never {
+  throw new Error(extractErrorMessage(err));
+}
+
+// ── Public ────────────────────────────────────────────────────────────────────
+
+export async function login(
+  email: string,
+  password: string
+): Promise<LoginResponse> {
+  try {
+    const { data } = await apiClient.post<{
+      success: boolean;
+      data: LoginResponse;
+    }>("/api/auth/login", { email, password });
+    return (data as any).data ?? (data as unknown as LoginResponse);
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function register(
@@ -54,62 +51,90 @@ export async function register(
   password: string,
   role = "PATIENT"
 ): Promise<LoginResponse> {
-  const res = await fetch(`${API_BASE}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, role }),
-  });
-  const data = await handleResponse<{ success: boolean; data: LoginResponse }>(res);
-  return data.data ?? (data as unknown as LoginResponse);
+  try {
+    const { data } = await apiClient.post<{
+      success: boolean;
+      data: LoginResponse;
+    }>("/api/auth/register", { name, email, password, role });
+    return (data as any).data ?? (data as unknown as LoginResponse);
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function getMe(): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() });
-  const data = await handleResponse<{ success: boolean; data: AuthUser }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.get<{
+      success: boolean;
+      data: AuthUser;
+    }>("/api/auth/me");
+    return data.data;
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function deactivateAccount(): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/auth/deactivate`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
-  await handleResponse(res);
+  try {
+    await apiClient.post("/api/auth/deactivate");
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+// ── Admin ─────────────────────────────────────────────────────────────────────
 
 export async function getAllUsers(): Promise<AuthUser[]> {
-  const res = await fetch(`${API_BASE}/api/auth/users`, { headers: authHeaders() });
-  const data = await handleResponse<{ success: boolean; data: AuthUser[] }>(res);
-  return data.data ?? [];
+  try {
+    const { data } = await apiClient.get<{
+      success: boolean;
+      data: AuthUser[];
+    }>("/api/auth/users");
+    return data.data ?? [];
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
-export async function updateUserStatus(userId: string, isActive: boolean): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/auth/users/${userId}/status`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify({ isActive }),
-  });
-  const data = await handleResponse<{ success: boolean; data: AuthUser }>(res);
-  return data.data;
+export async function updateUserStatus(
+  userId: string,
+  isActive: boolean
+): Promise<AuthUser> {
+  try {
+    const { data } = await apiClient.patch<{
+      success: boolean;
+      data: AuthUser;
+    }>(`/api/auth/users/${userId}/status`, { isActive });
+    return data.data;
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
-export async function updateUserRole(userId: string, role: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/auth/users/${userId}/role`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify({ role }),
-  });
-  const data = await handleResponse<{ success: boolean; data: AuthUser }>(res);
-  return data.data;
+export async function updateUserRole(
+  userId: string,
+  role: string
+): Promise<AuthUser> {
+  try {
+    const { data } = await apiClient.patch<{
+      success: boolean;
+      data: AuthUser;
+    }>(`/api/auth/users/${userId}/role`, { role });
+    return data.data;
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function verifyDoctor(userId: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/auth/users/${userId}/verify`, {
-    method: "PATCH",
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: AuthUser }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.patch<{
+      success: boolean;
+      data: AuthUser;
+    }>(`/api/auth/users/${userId}/verify`);
+    return data.data;
+  } catch (err) {
+    throwErr(err);
+  }
 }
+

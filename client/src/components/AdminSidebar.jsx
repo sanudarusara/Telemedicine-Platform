@@ -6,9 +6,12 @@ import {
   ShieldCheck,
   Heart,
   LogOut,
+  Server,
+  CreditCard,
+  Stethoscope,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink.jsx";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -25,21 +28,19 @@ import {
 const adminNavItems = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "User Management", url: "/admin/users", icon: Users },
+  { title: "Doctor Verification", url: "/admin/doctor-verification", icon: Stethoscope },
   { title: "Patient Records", url: "/admin/patients", icon: UserCheck },
+  { title: "Payment Oversight", url: "/admin/payments", icon: CreditCard },
   { title: "Audit Logs", url: "/admin/audit", icon: Activity },
+  { title: "Gateway Status", url: "/admin/gateway-status", icon: Server },
 ];
 
 const AdminSidebar = () => {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-    navigate("/login");
-  };
+  const handleLogout = () => logout();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">

@@ -2,6 +2,19 @@ const mongoose = require("mongoose");
 const Prescription = require("../models/prescription_model");
 const Appointment = require("../models/appointment_model");
 
+/**
+ * Returns the effective doctor ID for querying appointments/prescriptions.
+ * Prefers the auth-service userId (from gateway x-user-id header) since that
+ * is what gets stored as doctorId when appointments/prescriptions are created.
+ */
+const getEffectiveDoctorId = (req) => {
+  if (req.doctorAuthId && mongoose.Types.ObjectId.isValid(req.doctorAuthId)) {
+    return req.doctorAuthId;
+  }
+  if (req.doctor && req.doctor._id) return req.doctor._id.toString();
+  return null;
+};
+
 // Generate prescription number
 const generatePrescriptionNo = async () => {
   const count = await Prescription.countDocuments();
@@ -17,7 +30,8 @@ const createPrescription = async (req, res) => {
     console.log("Create prescription body:", req.body);
     console.log("Logged doctor:", req.doctor);
 
-    if (!req.doctor || !req.doctor._id) {
+    const effectiveDoctorId = getEffectiveDoctorId(req);
+    if (!effectiveDoctorId) {
       return res.status(401).json({ message: "Doctor authentication failed" });
     }
 
@@ -47,7 +61,7 @@ const createPrescription = async (req, res) => {
       });
     }
 
-    if (appointment.doctorId.toString() !== req.doctor._id.toString()) {
+    if (appointment.doctorId.toString() !== effectiveDoctorId) {
       return res.status(403).json({
         message: "You are not allowed to create a prescription for this appointment",
       });
@@ -86,7 +100,7 @@ const createPrescription = async (req, res) => {
     const prescription = new Prescription({
       prescriptionNo,
       centerId: appointment.centerId,
-      doctorId: req.doctor._id,
+      doctorId: effectiveDoctorId,
       appointmentId: appointment._id,
       diagnosis: diagnosis.trim(),
       notes: notes?.trim() || "",
@@ -115,11 +129,12 @@ const createPrescription = async (req, res) => {
 // Get all prescriptions for a doctor
 const getPrescriptions = async (req, res) => {
   try {
-    if (!req.doctor || !req.doctor._id) {
+    const effectiveDoctorId = getEffectiveDoctorId(req);
+    if (!effectiveDoctorId) {
       return res.status(401).json({ message: "Doctor authentication failed" });
     }
 
-    const prescriptions = await Prescription.find({ doctorId: req.doctor._id })
+    const prescriptions = await Prescription.find({ doctorId: effectiveDoctorId })
       .populate("appointmentId")
       .sort({ createdAt: -1 });
 
@@ -140,7 +155,8 @@ const getPrescriptionById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!req.doctor || !req.doctor._id) {
+    const effectiveDoctorId = getEffectiveDoctorId(req);
+    if (!effectiveDoctorId) {
       return res.status(401).json({ message: "Doctor authentication failed" });
     }
 
@@ -164,7 +180,7 @@ const getPrescriptionById = async (req, res) => {
       return res.status(400).json({ message: "Prescription doctor is missing" });
     }
 
-    if (prescriptionDoctorId !== req.doctor._id.toString()) {
+    if (prescriptionDoctorId !== effectiveDoctorId) {
       return res.status(403).json({ message: "Access denied" });
     }
 

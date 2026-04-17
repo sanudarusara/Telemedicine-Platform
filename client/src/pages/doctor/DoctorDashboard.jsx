@@ -12,10 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
-const getDoctorToken = () =>
-  localStorage.getItem("doctor_token") || localStorage.getItem("token") || "";
+import apiClient, { extractErrorMessage } from "@/services/api/apiClient";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,22 +21,6 @@ const Dashboard = () => {
   const [doctorName, setDoctorName] = useState("Doctor");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const getHeaders = () => {
-    const token = getDoctorToken();
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
-  const parseResponse = async (response) => {
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
-    }
-    return null;
-  };
 
   const getPatientDisplayName = (appointment) => {
     return (
@@ -76,53 +57,53 @@ const Dashboard = () => {
     try {
       setLoading(true);
       setError("");
-      const token = getDoctorToken();
-      if (!token) {
-        throw new Error("Doctor token missing. Please log in again.");
+
+      // Decode the doctor's auth ID from the active token
+      const token =
+        localStorage.getItem("doctor_token") || localStorage.getItem("token") || "";
+      let doctorId = null;
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          doctorId = payload.id || payload._id || payload.doctorId;
+        } catch (_) {}
       }
+
+      const appointmentsEndpoint = doctorId
+        ? `/api/appointments/doctor/${doctorId}/pending`
+        : "/api/doctors/appointments"; // fallback
 
       const [profileRes, appointmentsRes, prescriptionsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/doctors/profile`, {
-          method: "GET",
-          headers: getHeaders(),
-        }),
-        fetch(`${API_BASE_URL}/doctors/appointments`, {
-          method: "GET",
-          headers: getHeaders(),
-        }),
-        fetch(`${API_BASE_URL}/doctors/prescriptions`, {
-          method: "GET",
-          headers: getHeaders(),
-        }),
+        apiClient.get("/api/doctors/profile"),
+        apiClient.get(appointmentsEndpoint),
+        apiClient.get("/api/doctors/prescriptions"),
       ]);
 
-      const profileData = await parseResponse(profileRes);
-      const appointmentsData = await parseResponse(appointmentsRes);
-      const prescriptionsData = await parseResponse(prescriptionsRes);
+      const profileData = profileRes.data;
+      const appointmentsData = appointmentsRes.data;
+      const prescriptionsData = prescriptionsRes.data;
 
-      if (!profileRes.ok) {
-        throw new Error(profileData?.message || "Failed to fetch doctor profile");
-      }
-
-      if (!appointmentsRes.ok) {
-        throw new Error(appointmentsData?.message || "Failed to fetch appointments");
-      }
-
-      if (!prescriptionsRes.ok) {
-        throw new Error(prescriptionsData?.message || "Failed to fetch prescriptions");
-      }
-
-      setDoctorName(profileData?.name || "Doctor");
-      setAppointments(Array.isArray(appointmentsData?.appointments) ? appointmentsData.appointments : []);
+      setDoctorName(profileData?.name || profileData?.data?.name || "Doctor");
+      setAppointments(
+        Array.isArray(appointmentsData?.data)
+          ? appointmentsData.data
+          : Array.isArray(appointmentsData?.appointments)
+          ? appointmentsData.appointments
+          : Array.isArray(appointmentsData)
+          ? appointmentsData
+          : []
+      );
       setPrescriptions(
         Array.isArray(prescriptionsData?.prescriptions)
           ? prescriptionsData.prescriptions
+          : Array.isArray(prescriptionsData?.data)
+          ? prescriptionsData.data
           : Array.isArray(prescriptionsData)
           ? prescriptionsData
           : []
       );
     } catch (err) {
-      setError(err.message || "Failed to load dashboard");
+      setError(extractErrorMessage(err, "Failed to load dashboard"));
     } finally {
       setLoading(false);
     }

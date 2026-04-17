@@ -67,6 +67,30 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ── Health passthrough routes (no auth — used by gateway status page) ──────────
+// These MUST be registered before the authenticated proxy routes so they
+// match first and bypass the authenticate middleware.
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const services = require('./config/services');
+
+const makeHealthProxy = (target) =>
+  createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    pathRewrite: () => '/health',
+  });
+
+app.get('/api/auth/health',          makeHealthProxy(services.AUTH_SERVICE_URL));
+app.get('/api/patients/health',      makeHealthProxy(services.PATIENT_SERVICE_URL));
+app.get('/api/reports/health',       makeHealthProxy(services.PATIENT_SERVICE_URL));
+app.get('/api/audit/health',         makeHealthProxy(services.AUDIT_SERVICE_URL));
+app.get('/api/appointments/health',  makeHealthProxy(services.APPOINTMENT_SERVICE_URL));
+app.get('/api/doctors/health',       makeHealthProxy(services.DOCTOR_SERVICE_URL));
+app.get('/api/symptoms/health',      makeHealthProxy(services.AI_SYMPTOM_SERVICE_URL));
+app.get('/api/notifications/health', makeHealthProxy(services.NOTIFICATION_SERVICE_URL));
+app.get('/api/payments/health',      makeHealthProxy(services.PAYMENT_SERVICE_URL));
+app.get('/api/telemedicine/health',  makeHealthProxy(services.TELEMEDICINE_SERVICE_URL));
+
 // ── API Gateway Routes ─────────────────────────────────────────────────────────
 app.use("/api/auth", authProxy);
 app.use("/api/patients", patientProxy);
@@ -74,10 +98,9 @@ app.use("/api/reports", patientProxy);
 app.use("/api/audit", auditProxy);
 app.use("/api/notifications", notificationProxy);
 app.use("/api/payments", paymentProxy);app.use('/api/appointments', appointmentProxy);
-app.use('/api/doctors', doctorProxy);app.use("/api/symptoms", aiSymptomProxy);
-
+app.use('/api/doctors', doctorProxy);
 app.use("/api/doctor-auth", doctorAuthProxy);
-app.use("/api/doctors", doctorProxy);
+app.use("/api/symptoms", aiSymptomProxy);
 app.use("/api/telemedicine", telemedicineProxy);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
@@ -85,7 +108,7 @@ app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.method} ${req.originalUrl} not found`,
-    hint: "Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications, /api/payments, /api/appointments, /api/doctors, /api/symptoms, /api/doctor-auth, /api/doctors, /api/telemedicine",
+    hint: "Available services: /api/auth, /api/patients, /api/reports, /api/audit, /api/notifications, /api/payments, /api/appointments, /api/doctors, /api/doctor-auth, /api/symptoms, /api/telemedicine",
   });
 });
 

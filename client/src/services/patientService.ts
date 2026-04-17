@@ -1,22 +1,13 @@
 /**
  * Patient Management Service API client
- * Communicates through the API Gateway at /api/patients and /api/reports
+ * All requests route through the API Gateway at /api/patients and /api/reports
  */
 
-const API_BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "");
+import apiClient, { extractErrorMessage } from "@/services/api/apiClient";
+import { getStoredToken } from "@/services/api/apiClient";
 
-const getToken = (): string =>
-  localStorage.getItem("token") || localStorage.getItem("doctor_token") || "";
-
-const authHeaders = (): HeadersInit => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-});
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || data?.error || "Request failed");
-  return data;
+function throwErr(err: unknown): never {
+  throw new Error(extractErrorMessage(err));
 }
 
 // ─── Patient Profile ──────────────────────────────────────────────────────────
@@ -50,27 +41,24 @@ export interface PatientProfile {
 }
 
 export async function getPatientProfile(): Promise<PatientProfile> {
-  const res = await fetch(`${API_BASE}/api/patients/profile`, {
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: PatientProfile }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: PatientProfile }>("/api/patients/profile");
+    return data.data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function updatePatientProfile(body: Partial<PatientProfile>): Promise<PatientProfile> {
-  const res = await fetch(`${API_BASE}/api/patients/profile`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
-  });
-  const data = await handleResponse<{ success: boolean; data: PatientProfile }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.put<{ success: boolean; data: PatientProfile }>("/api/patients/profile", body);
+    return data.data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getAllPatients(): Promise<PatientProfile[]> {
-  const res = await fetch(`${API_BASE}/api/patients`, { headers: authHeaders() });
-  const data = await handleResponse<{ success: boolean; count: number; data: PatientProfile[] }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.get<{ success: boolean; count: number; data: PatientProfile[] }>("/api/patients");
+    return data.data;
+  } catch (err) { throwErr(err); }
 }
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────
@@ -86,11 +74,10 @@ export interface Prescription {
 }
 
 export async function getPrescriptions(userId: string): Promise<Prescription[]> {
-  const res = await fetch(`${API_BASE}/api/patients/${userId}/prescriptions`, {
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: { prescriptions: Prescription[] } }>(res);
-  return data.data?.prescriptions ?? [];
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: { prescriptions: Prescription[] } }>(`/api/patients/${userId}/prescriptions`);
+    return data.data?.prescriptions ?? [];
+  } catch (err) { throwErr(err); }
 }
 
 // ─── Medical History ──────────────────────────────────────────────────────────
@@ -106,11 +93,10 @@ export interface HistoryEntry {
 }
 
 export async function getMedicalHistory(userId: string): Promise<HistoryEntry[]> {
-  const res = await fetch(`${API_BASE}/api/patients/${userId}/history`, {
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: { medicalHistory: HistoryEntry[] } }>(res);
-  return data.data?.medicalHistory ?? [];
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: { medicalHistory: HistoryEntry[] } }>(`/api/patients/${userId}/history`);
+    return data.data?.medicalHistory ?? [];
+  } catch (err) { throwErr(err); }
 }
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
@@ -131,35 +117,34 @@ export interface MedicalReport {
 }
 
 export async function getReports(userId: string): Promise<MedicalReport[]> {
-  const res = await fetch(`${API_BASE}/api/reports/${userId}`, {
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: MedicalReport[] }>(res);
-  return data.data ?? [];
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: MedicalReport[] }>(`/api/reports/${userId}`);
+    return data.data ?? [];
+  } catch (err) { throwErr(err); }
 }
 
 export async function getReportsByType(userId: string, reportType: string): Promise<MedicalReport[]> {
-  const res = await fetch(`${API_BASE}/api/reports/${userId}/type/${reportType}`, {
-    headers: authHeaders(),
-  });
-  const data = await handleResponse<{ success: boolean; data: MedicalReport[] }>(res);
-  return data.data ?? [];
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: MedicalReport[] }>(`/api/reports/${userId}/type/${reportType}`);
+    return data.data ?? [];
+  } catch (err) { throwErr(err); }
 }
 
 export async function uploadReport(userId: string, formData: FormData): Promise<MedicalReport> {
-  const res = await fetch(`${API_BASE}/api/reports/upload/${userId}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getToken()}` }, // no Content-Type — let browser set multipart boundary
-    body: formData,
-  });
-  const data = await handleResponse<{ success: boolean; data: MedicalReport }>(res);
-  return data.data;
+  try {
+    // Pass FormData directly — axios sets multipart/form-data + boundary automatically.
+    // The Authorization header is injected by the request interceptor.
+    const { data } = await apiClient.post<{ success: boolean; data: MedicalReport }>(
+      `/api/reports/upload/${userId}`,
+      formData,
+      { headers: { "Content-Type": undefined } } // let axios/browser set boundary
+    );
+    return data.data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function deleteReport(reportId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/reports/${reportId}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  await handleResponse(res);
+  try {
+    await apiClient.delete(`/api/reports/${reportId}`);
+  } catch (err) { throwErr(err); }
 }

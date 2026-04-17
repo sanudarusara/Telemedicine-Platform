@@ -73,7 +73,7 @@ const Login = () => {
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", "doctor");
 
-      navigate("/dashboard", { replace: true });
+      navigate("/doctor/dashboard", { replace: true });
     } catch (err) {
       clearStoredAuth();
       setError(err.message || "Login failed");

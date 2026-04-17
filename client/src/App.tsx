@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ReactNode } from "react";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 // Old pages
 import Home from "./pages/home/Home";
@@ -13,12 +14,11 @@ import AppointmentsPage from "./pages/appointments/AppointmentsPage";
 
 // New lovable pages
 import Index from "./pages/Index.jsx";
-import PatientLogin from "./pages/PatientLogin.jsx";
+import LoginPage from "./pages/LoginPage";
 import PatientDashboard from "./pages/PatientDashboard.jsx";
 import NotFound from "./pages/NotFound.tsx";
 
 // Doctor pages
-import DoctorLogin from "./pages/doctor/DoctorLogin.jsx";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard.jsx";
 import DoctorAppointments from "./pages/doctor/DoctorAppointments.jsx";
 import DoctorPrescriptions from "./pages/doctor/DoctorPrescriptions.jsx";
@@ -42,6 +42,9 @@ import PatientPrescriptions from "./pages/my-services/patient/PatientPrescriptio
 import AdminDashboard from "./pages/my-services/admin/AdminDashboard.jsx";
 import AdminUsers from "./pages/my-services/admin/AdminUsers.jsx";
 import AdminPatients from "./pages/my-services/admin/AdminPatients.jsx";
+import AdminDoctorVerification from "./pages/my-services/admin/AdminDoctorVerification.jsx";
+import AdminPayments from "./pages/my-services/admin/AdminPayments.jsx";
+import GatewayStatusPage from "./pages/my-services/admin/GatewayStatusPage";
 
 // ── my-services: Audit ────────────────────────────────────────────────────────
 import AuditLogs from "./pages/my-services/audit/AuditLogs.tsx";
@@ -55,43 +58,48 @@ type ProtectedRouteProps = {
   children: ReactNode;
 };
 
+/** Generic guard — requires any valid token (patient, admin, or doctor). */
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const token =
-    localStorage.getItem("doctor_token") ||
-    localStorage.getItem("token") ||
-    "";
-
-  return token ? <>{children}</> : <Navigate to="/login" replace />;
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+/** Doctor-only guard. */
 const ProtectedDoctorRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("doctor_token") || "";
-  return token ? <>{children}</> : <Navigate to="/doctor/login" replace />;
+  const { isAuthenticated, role } = useAuth();
+  if (!isAuthenticated || role !== "doctor")
+    return <Navigate to="/doctor/login" replace />;
+  return <>{children}</>;
 };
 
+/** Patient-only guard. */
 const ProtectedPatientRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("token") || "";
-  return token ? <>{children}</> : <Navigate to="/patient-login" replace />;
+  const { isAuthenticated, role } = useAuth();
+  if (!isAuthenticated || role === "doctor")
+    return <Navigate to="/login" replace />;
+  return <>{children}</>;
 };
 
+/** Admin-only guard. */
 const ProtectedAdminRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("token") || "";
-  const role = (localStorage.getItem("role") || "").toUpperCase();
-  if (!token) return <Navigate to="/patient-login" replace />;
-  if (role !== "ADMIN") return <Navigate to="/patient-dashboard" replace />;
+  const { isAuthenticated, role } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (role !== "admin") return <Navigate to="/patient-dashboard" replace />;
   return <>{children}</>;
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
+  <AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
           {/* Home opens first */}
           <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Home />} />
+          {/* Unified login — all roles (patient, doctor, admin) */}
+          <Route path="/login" element={<LoginPage />} />
 
           {/* Old routes */}
           <Route path="/ai-symptom-service" element={<AiSymptomServicePage />} />
@@ -100,11 +108,9 @@ const App = () => (
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/cancel" element={<PaymentCancel />} />
 
-          {/* Doctor login updated */}
-          <Route path="/doctor/login" element={<DoctorLogin />} />
-
-          {/* Patient kept unchanged */}
-          <Route path="/patient-login" element={<PatientLogin />} />
+          {/* Legacy login routes — redirect to unified /login */}
+          <Route path="/doctor/login" element={<LoginPage />} />
+          <Route path="/patient-login" element={<LoginPage />} />
 
           {/* Doctor routes updated */}
           <Route
@@ -219,6 +225,14 @@ const App = () => (
               </ProtectedPatientRoute>
             }
           />
+          <Route
+            path="/patient/ai-symptoms"
+            element={
+              <ProtectedPatientRoute>
+                <AiSymptomServicePage />
+              </ProtectedPatientRoute>
+            }
+          />
 
           {/* ── Admin routes ───────────────────────────────────────────────── */}
           <Route
@@ -253,6 +267,30 @@ const App = () => (
               </ProtectedAdminRoute>
             }
           />
+          <Route
+            path="/admin/gateway-status"
+            element={
+              <ProtectedAdminRoute>
+                <GatewayStatusPage />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/doctor-verification"
+            element={
+              <ProtectedAdminRoute>
+                <AdminDoctorVerification />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/payments"
+            element={
+              <ProtectedAdminRoute>
+                <AdminPayments />
+              </ProtectedAdminRoute>
+            }
+          />
           {/* Doctors also have read access to audit logs */}
           <Route
             path="/doctor/audit"
@@ -263,9 +301,10 @@ const App = () => (
             }
           />
         </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </AuthProvider>
 );
 
 export default App;

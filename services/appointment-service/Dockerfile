@@ -9,8 +9,8 @@ RUN npm install --production --no-audit --no-fund
 # Copy service source
 COPY appointment-service .
 
-# Copy shared code so requires like '../../../shared/...' resolve inside the container
-COPY shared ./shared
+# Copy shared code to /usr/src/shared so requires like '../../../shared/..' resolve correctly
+COPY shared /usr/src/shared
 
 EXPOSE 3001
 

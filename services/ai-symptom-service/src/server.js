@@ -22,6 +22,11 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use("/symptoms", symptomRoutes);
 
+// Health check
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", service: "ai-symptom-service", timestamp: new Date().toISOString() });
+});
+
 // Test route
 app.get("/", (req, res) => {
   res.send("AI Symptom Service running");

@@ -1,23 +1,13 @@
 /**
  * Audit Management Service API client
- * Communicates through the API Gateway at /api/audit
+ * All requests route through the API Gateway at /api/audit
  * Access: ADMIN (full), DOCTOR (read-only)
  */
 
-const API_BASE = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api$/, "") : "");
+import apiClient, { extractErrorMessage } from "@/services/api/apiClient";
 
-const getToken = (): string =>
-  localStorage.getItem("token") || localStorage.getItem("doctor_token") || "";
-
-const authHeaders = (): HeadersInit => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-});
-
-async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || data?.error || "Request failed");
-  return data;
+function throwErr(err: unknown): never {
+  throw new Error(extractErrorMessage(err));
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,40 +54,40 @@ export async function getAllLogs(params: AuditQueryParams = {}): Promise<AuditLo
   if (params.limit) qs.set("limit", String(params.limit));
   if (params.sortBy) qs.set("sortBy", params.sortBy);
   if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
-  const res = await fetch(`${API_BASE}/api/audit${qs.toString() ? `?${qs}` : ""}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse<AuditLogsResponse>(res);
+  try {
+    const { data } = await apiClient.get<AuditLogsResponse>(`/api/audit${qs.toString() ? `?${qs}` : ""}`);
+    return data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getLogsByUser(userId: string, params: AuditQueryParams = {}): Promise<AuditLogsResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
-  const res = await fetch(`${API_BASE}/api/audit/user/${userId}${qs.toString() ? `?${qs}` : ""}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse<AuditLogsResponse>(res);
+  try {
+    const { data } = await apiClient.get<AuditLogsResponse>(`/api/audit/user/${userId}${qs.toString() ? `?${qs}` : ""}`);
+    return data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getLogsByService(serviceName: string, params: AuditQueryParams = {}): Promise<AuditLogsResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
-  const res = await fetch(`${API_BASE}/api/audit/service/${serviceName}${qs.toString() ? `?${qs}` : ""}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse<AuditLogsResponse>(res);
+  try {
+    const { data } = await apiClient.get<AuditLogsResponse>(`/api/audit/service/${serviceName}${qs.toString() ? `?${qs}` : ""}`);
+    return data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getLogsByAction(action: string, params: AuditQueryParams = {}): Promise<AuditLogsResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
-  const res = await fetch(`${API_BASE}/api/audit/action/${action}${qs.toString() ? `?${qs}` : ""}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse<AuditLogsResponse>(res);
+  try {
+    const { data } = await apiClient.get<AuditLogsResponse>(`/api/audit/action/${action}${qs.toString() ? `?${qs}` : ""}`);
+    return data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getLogsByDateRange(
@@ -108,22 +98,21 @@ export async function getLogsByDateRange(
   const qs = new URLSearchParams({ start, end });
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
-  const res = await fetch(`${API_BASE}/api/audit/date-range?${qs}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse<AuditLogsResponse>(res);
+  try {
+    const { data } = await apiClient.get<AuditLogsResponse>(`/api/audit/date-range?${qs}`);
+    return data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function getLogById(id: string): Promise<AuditLog> {
-  const res = await fetch(`${API_BASE}/api/audit/${id}`, { headers: authHeaders() });
-  const data = await handleResponse<{ success: boolean; data: AuditLog }>(res);
-  return data.data;
+  try {
+    const { data } = await apiClient.get<{ success: boolean; data: AuditLog }>(`/api/audit/${id}`);
+    return data.data;
+  } catch (err) { throwErr(err); }
 }
 
 export async function deleteLog(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/audit/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  await handleResponse(res);
+  try {
+    await apiClient.delete(`/api/audit/${id}`);
+  } catch (err) { throwErr(err); }
 }

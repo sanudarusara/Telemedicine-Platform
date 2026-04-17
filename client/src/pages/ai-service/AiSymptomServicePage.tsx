@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
     Brain,
     Activity,
@@ -73,9 +74,12 @@ function getSeverityStyles(severity?: Severity) {
 }
 
 export default function AiSymptomServicePage() {
+    const { user } = useAuth();
+    const currentUserId = (user as any)?._id || (user as any)?.id || (user as any)?.userId || "guest";
+
     const [symptomInput, setSymptomInput] = useState<string>("");
     const [formData, setFormData] = useState<SymptomFormData>({
-        userId: "user123",
+        userId: currentUserId,
         symptoms: [],
         age: "",
         gender: "",

@@ -1,18 +1,22 @@
 const Joi = require('joi');
 
 const validateAppointment = (data) => {
+    // Allow any slot on today or future dates (compare date only, not time)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const schema = Joi.object({
         patientId: Joi.string().required(),
         doctorId: Joi.string().required(),
-        date: Joi.date().required().min('now'),
+        date: Joi.date().required().min(startOfToday),
         timeSlot: Joi.string().required(),
         consultationType: Joi.string().valid('video', 'clinic'),
-        symptoms: Joi.string().max(500),
-        notes: Joi.string().max(500),
+        symptoms: Joi.string().max(500).allow(''),
+        notes: Joi.string().max(500).allow(''),
         paymentAmount: Joi.number().min(0)
     });
     
-    return schema.validate(data);
+    return schema.validate(data, { allowUnknown: true, stripUnknown: true });
 };
 
 const validateStatusUpdate = (data) => {
@@ -21,17 +25,20 @@ const validateStatusUpdate = (data) => {
         notes: Joi.string().max(500)
     });
     
-    return schema.validate(data);
+    return schema.validate(data, { allowUnknown: true, stripUnknown: true });
 };
 
 const validateReschedule = (data) => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const schema = Joi.object({
-        newDate: Joi.date().required().min('now'),
+        newDate: Joi.date().required().min(startOfToday),
         newTimeSlot: Joi.string().required(),
         reason: Joi.string().max(500)
     });
     
-    return schema.validate(data);
+    return schema.validate(data, { allowUnknown: true, stripUnknown: true });
 };
 
 const validateSearch = (data) => {

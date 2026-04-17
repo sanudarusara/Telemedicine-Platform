@@ -98,7 +98,9 @@ const Appointments = () => {
       );
     }
 
-    const appointmentList = Array.isArray(data?.appointments)
+    const appointmentList = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.appointments)
       ? data.appointments
       : Array.isArray(data)
       ? data
@@ -126,12 +128,13 @@ const Appointments = () => {
         throw new Error("Doctor token missing. Please log in again.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/doctors/appointments/${id}/accept`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/appointments/${id}/status`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ status: "confirmed" }),
       });
 
       const data = await parseResponse(response);
@@ -143,11 +146,7 @@ const Appointments = () => {
       setAppointments((prev) =>
         prev.map((appointment) =>
           appointment._id === id
-            ? {
-                ...appointment,
-                ...data?.appointment,
-                status: "confirmed",
-              }
+            ? { ...appointment, status: "confirmed" }
             : appointment
         )
       );
@@ -167,12 +166,13 @@ const Appointments = () => {
         throw new Error("Doctor token missing. Please log in again.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/doctors/appointments/${id}/reject`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/appointments/${id}/status`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ status: "cancelled" }),
       });
 
       const data = await parseResponse(response);
@@ -184,11 +184,7 @@ const Appointments = () => {
       setAppointments((prev) =>
         prev.map((appointment) =>
           appointment._id === id
-            ? {
-                ...appointment,
-                ...data?.appointment,
-                status: "cancelled",
-              }
+            ? { ...appointment, status: "cancelled" }
             : appointment
         )
       );

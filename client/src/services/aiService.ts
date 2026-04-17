@@ -1,3 +1,5 @@
+import apiClient, { extractErrorMessage } from "@/services/api/apiClient";
+
 export type Severity = "LOW" | "MEDIUM" | "HIGH";
 
 export type AnalyzeSymptomsPayload = {
@@ -27,26 +29,16 @@ export type SymptomAnalysisResult = {
   updatedAt?: string;
 };
 
-// 🔥 CHANGED HERE
-const API_BASE =
-  import.meta.env.VITE_API_GATEWAY_URL || "http://localhost:5400/api";
-
 export async function analyzeSymptoms(
   payload: AnalyzeSymptomsPayload
 ): Promise<SymptomAnalysisResult> {
-  const res = await fetch(`${API_BASE}/symptoms/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Failed to analyze symptoms.");
+  try {
+    const { data } = await apiClient.post<SymptomAnalysisResult>(
+      "/api/symptoms/analyze",
+      payload
+    );
+    return data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, "Failed to analyze symptoms."));
   }
-
-  return data;
 }

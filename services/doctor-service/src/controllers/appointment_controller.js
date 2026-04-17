@@ -1,7 +1,15 @@
 const mongoose = require("mongoose");
 const Appointment = require("../models/appointment_model");
 
+/**
+ * Returns the ID to use when querying appointments by doctorId.
+ * Appointments are created using the auth-service userId (from x-user-id header),
+ * so we prefer that. Falls back to the doctor-service's own ObjectId.
+ */
 const getDoctorObjectId = (req) => {
+  if (req.doctorAuthId && mongoose.Types.ObjectId.isValid(req.doctorAuthId)) {
+    return req.doctorAuthId;
+  }
   if (!req.doctor || !req.doctor._id) return null;
   return req.doctor._id.toString();
 };

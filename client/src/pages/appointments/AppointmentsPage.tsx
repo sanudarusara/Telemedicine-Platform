@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAppointments, cancelAppointment, searchDoctors, getAvailableSlots, createAppointment, downloadReceipt } from "@/services/appointmentsService";
 import type { Appointment } from "@/services/appointmentsService";
+import { createPayment } from "@/services/paymentService";
 import { Calendar, Filter, Search, Plus, Clock, MapPin, DollarSign, User, Stethoscope, X, Loader2, CreditCard, Calendar as CalendarIcon, FileText, Download, Eye, Building, Video } from "lucide-react";
 import {
   Dialog,
@@ -111,16 +112,7 @@ export default function AppointmentsPage() {
   const [cancelTarget, setCancelTarget] = React.useState<any | null>(null);
   const [cancelLoading, setCancelLoading] = React.useState(false);
 
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentResult = params.get("payment");
-
-    if (paymentResult === "success") {
-      const cleanUrl = `${window.location.origin}/appointments`;
-      window.history.replaceState({}, document.title, cleanUrl);
-      window.location.reload();
-    }
-  }, []);
+  const [paymentLoading, setPaymentLoading] = React.useState<string | null>(null);
 
   // Fetch appointments and enrich with doctor/center details
   React.useEffect(() => {
@@ -313,85 +305,32 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handlePayment = (appointment: any) => {
-    setPaymentAppointment(appointment);
-    setPaymentMethod("PAYHERE");
-    setPaymentModalOpen(true);
-  };
-
-  const proceedPayment = async () => {
-    if (!paymentAppointment || !userId) return;
-
+  const handlePayment = async (appointment: any) => {
     try {
-      setPaymentLoading(true);
+      setPaymentLoading(appointment.id);
       setError(null);
 
-      const payload = {
-        userId,
-        appointmentId:
-          paymentAppointment.id ||
-          paymentAppointment._id ||
-          paymentAppointment.appointmentId,
-        amount: Number(paymentAppointment.fee || paymentAppointment.paymentAmount || 1500),
-        paymentMethod,
-      };
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const uid = user._id || user.id || user.userId || userId || '';
 
-      if (paymentMethod === "STRIPE") {
-        const response = await fetch("http://localhost:5400/api/payments/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message || "Failed to create Stripe payment");
-        }
-
-        if (data.checkoutUrl) {
-          window.location.href = data.checkoutUrl;
-          return;
-        }
-
-        throw new Error("Stripe checkout URL not returned");
-      }
-
-      const response = await fetch("http://localhost:5400/api/payments/payhere-create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+      const result = await createPayment({
+        userId: uid,
+        appointmentId: appointment.id || appointment.raw?._id,
+        amount: appointment.fee,
+        currency: 'usd',
+        paymentMethod: 'STRIPE',
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Failed to create PayHere payment");
+      const { checkoutUrl } = result as any;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+      } else {
+        setError('Payment session could not be created. Please try again.');
       }
-
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = "https://sandbox.payhere.lk/pay/checkout";
-
-      Object.entries(data).forEach(([key, value]) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = String(value ?? "");
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
     } catch (err: any) {
-      console.error("Payment error:", err);
-      setError(err?.message || "Failed to start payment");
+      setError(err?.message || 'Payment failed. Please try again.');
     } finally {
-      setPaymentLoading(false);
+      setPaymentLoading(null);
     }
   };
 
@@ -771,13 +710,16 @@ export default function AppointmentsPage() {
                               variant="default"
                               size="sm"
                               className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
+                              disabled={paymentLoading === appointment.id}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handlePayment(appointment);
                               }}
                             >
-                              <CreditCard className="w-3 h-3" />
-                              Pay Now
+                              {paymentLoading === appointment.id
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <CreditCard className="w-3 h-3" />}
+                              Pay Here
                             </Button>
                           )}
 
@@ -1022,9 +964,12 @@ export default function AppointmentsPage() {
               ) : selectedAppointment.status === 'confirmed' ? (
                 <Button
                   className="w-full gap-2 bg-green-600 hover:bg-green-700"
+                  disabled={paymentLoading === selectedAppointment.id}
                   onClick={() => handlePayment(selectedAppointment)}
                 >
-                  <CreditCard className="w-4 h-4" />
+                  {paymentLoading === selectedAppointment.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <CreditCard className="w-4 h-4" />}
                   Pay Now
                 </Button>
               ) : null}

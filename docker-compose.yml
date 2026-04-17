@@ -1,71 +1,433 @@
 version: "3.9"
 
+# Smart Healthcare Platform — Root Docker Compose
+# Run from project root: docker-compose up --build
+#
+# Service → external port mapping:
+#   api-gateway           → 5400
+#   auth-service          → internal only (5000)
+#   patient-service       → 5001
+#   audit-service         → internal only (5002)
+#   notification-service  → 3003
+#   appointment-service   → 3001
+#   payment-service       → 5004
+#   ai-symptom-service    → 5005
+#   doctor-service        → 5006
+#   telemedicine-service  → 5007 (host) → 5000 (container)
+#   client                → 8082
+#   mongodb               → 27017
+#   kafka                 → 9092
+
 services:
-  appointment-service:
-    build: ./services/appointment-service
-    container_name: appointment-service
-    ports:
-      - "3001:3001"
-    env_file:
-      - ./services/appointment-service/.env
-    depends_on:
-      - mongodb
-    restart: unless-stopped
 
-  notification-service:
-    build: ./services/notification-service
-    container_name: notification-service
-    ports:
-      - "3003:3003"
-    env_file:
-      - ./services/notification-service/.env
-    depends_on:
-      - mongodb
-      - appointment-service
-    environment:
-      - APPOINTMENT_SERVICE_URL=http://appointment-service:3001
-    restart: unless-stopped
-
-  doctor-service:
-    build: ./services/doctor-service
-    container_name: doctor-service
-    ports:
-      - "8081:8081"
-    env_file:
-      - ./services/doctor-service/.env
-    restart: unless-stopped
-
-  telemedicine-service:
-    build: ./services/telemedicine-service
-    container_name: telemedicine-service
-    ports:
-      - "5000:5000"
-    env_file:
-      - ./services/telemedicine-service/.env
-    restart: unless-stopped
+  # ─── Infrastructure ────────────────────────────────────────────────────────
 
   mongodb:
-    image: mongo:6
+    image: mongo:7.0
     container_name: healthcare-mongodb
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - healthcare-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: healthcare-zookeeper
     restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - healthcare-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: healthcare-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - healthcare-network
+
+  # ─── Application Services ──────────────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile
+    container_name: healthcare-auth-service
+    restart: unless-stopped
+    expose:
+      - "5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongodb:27017/auth-management
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
+      JWT_EXPIRES_IN: 7d
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  patient-service:
+    build:
+      context: ./services
+      dockerfile: patient-management-service/Dockerfile
+    container_name: healthcare-patient-service
+    restart: unless-stopped
+    env_file:
+      - ./services/patient-management-service/.env
+    expose:
+      - "5001"
+    ports:
+      - "5001:5001"
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      MONGO_URI: mongodb://mongodb:27017/patient-management
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  audit-service:
+    build:
+      context: ./services
+      dockerfile: audit-management-service/Dockerfile
+    container_name: healthcare-audit-service
+    restart: unless-stopped
+    expose:
+      - "5002"
+    environment:
+      NODE_ENV: production
+      PORT: 5002
+      MONGO_URI: mongodb://mongodb:27017/audit-management
+      KAFKA_BROKER: kafka:29092
+      KAFKA_CLIENT_ID: audit-management-service
+      KAFKA_GROUP_ID: audit-service-group
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      PATIENT_SERVICE_URL: http://patient-service:5001
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  notification-service:
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+    container_name: healthcare-notification-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      MONGODB_URI: mongodb://mongodb:27017/notification-service
+      DOCKER_ENV: "true"
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  appointment-service:
+    build:
+      context: ./services
+      dockerfile: appointment-service/Dockerfile
+    container_name: healthcare-appointment-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/appointment-management
+      DOCKER_ENV: "true"
+      KAFKA_BROKER: kafka:29092
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
+      DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+    container_name: healthcare-payment-service
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    environment:
+      NODE_ENV: production
+      PORT: 5004
+      MONGO_URI: mongodb://mongodb:27017/payment-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8082}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      PAYHERE_MERCHANT_ID: ${PAYHERE_MERCHANT_ID:-}
+      PAYHERE_MERCHANT_SECRET: ${PAYHERE_MERCHANT_SECRET:-}
+      PAYHERE_RETURN_URL: ${PAYHERE_RETURN_URL:-http://localhost:8082/payment/success}
+      PAYHERE_CANCEL_URL: ${PAYHERE_CANCEL_URL:-http://localhost:8082/payment/cancel}
+      PAYHERE_NOTIFY_URL: ${PAYHERE_NOTIFY_URL:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  ai-symptom-service:
+    build:
+      context: ./services/ai-symptom-service
+    container_name: healthcare-ai-symptom-service
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      NODE_ENV: production
+      PORT: 5005
+      MONGO_URI: mongodb://mongodb:27017/ai-symptom-service
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5005/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - healthcare-network
+
+  doctor-service:
+    build:
+      context: ./services/doctor-service
+    container_name: healthcare-doctor-service
+    restart: unless-stopped
+    ports:
+      - "5006:5006"
+    environment:
+      NODE_ENV: production
+      PORT: 5006
+      MONGO_URI: ${DOCTOR_MONGO_URI:-mongodb://mongodb:27017/doctor-service}
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  telemedicine-service:
+    build:
+      context: ./services/telemedicine-service
+    container_name: healthcare-telemedicine-service
+    restart: unless-stopped
+    ports:
+      - "5007:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongodb:27017/telemedicine-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3001
+      DOCTOR_SERVICE_URL: http://api-gateway:5400
+      PATIENT_SERVICE_URL: http://patient-service:5001
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
+  api-gateway:
+    build:
+      context: ./services
+      dockerfile: api-gateway/Dockerfile
+    container_name: healthcare-api-gateway
+    restart: unless-stopped
+    ports:
+      - "5400:5400"
+    environment:
+      NODE_ENV: production
+      PORT: 5400
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random-use-strong-random}
+      AUTH_SERVICE_URL: http://auth-service:5000
+      PATIENT_SERVICE_URL: http://patient-service:5001
+      AUDIT_SERVICE_URL: http://audit-service:5002
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3001
+      PAYMENT_SERVICE_URL: http://payment-service:5004
+      AI_SYMPTOM_SERVICE_URL: http://ai-symptom-service:5005
+      DOCTOR_SERVICE_URL: http://doctor-service:5006
+      TELEMEDICINE_SERVICE_URL: http://telemedicine-service:5000
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      ai-symptom-service:
+        condition: service_healthy
+      doctor-service:
+        condition: service_healthy
+      telemedicine-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5400/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
 
   client:
-    build: ./client
+    build:
+      context: ./client
     container_name: healthcare-client
+    restart: unless-stopped
     ports:
       - "8082:8082"
-    env_file:
-      - ./client/.env
+    environment:
+      VITE_API_GATEWAY_URL: http://api-gateway:5400
+      API_GATEWAY_URL: http://api-gateway:5400
+      APPOINTMENT_API_URL: http://appointment-service:3001
+      VITE_NOTIFICATION_SERVICE_URL: http://notification-service:3003
     depends_on:
-      - doctor-service
-      - telemedicine-service
-      - appointment-service
-      - notification-service
-    restart: unless-stopped
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - healthcare-network
 
 volumes:
   mongodb_data:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+
+networks:
+  healthcare-network:
+    driver: bridge

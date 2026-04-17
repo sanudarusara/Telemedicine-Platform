@@ -10,16 +10,14 @@ class ReportRepository {
     return report.save();
   }
 
-  /** Get all reports for a patient, newest first, with uploader info. */
+  /** Get all reports for a patient, newest first. */
   async findByPatientId(patientId) {
-    return Report.find({ patientId })
-      .populate('uploadedBy', 'name email role')
-      .sort({ createdAt: -1 });
+    return Report.find({ patientId }).sort({ createdAt: -1 });
   }
 
   /** Find a single report by its _id. */
   async findById(id) {
-    return Report.findById(id).populate('uploadedBy', 'name email role');
+    return Report.findById(id);
   }
 
   /** Hard-delete a report document. Caller is responsible for deleting the file. */
@@ -29,9 +27,7 @@ class ReportRepository {
 
   /** Filter reports for a patient by report type, newest first. */
   async findByPatientAndType(patientId, reportType) {
-    return Report.find({ patientId, reportType })
-      .populate('uploadedBy', 'name email role')
-      .sort({ createdAt: -1 });
+    return Report.find({ patientId, reportType }).sort({ createdAt: -1 });
   }
 }
 

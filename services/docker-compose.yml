@@ -1,19 +1,22 @@
+# Smart Healthcare Platform — Docker Compose
 # ═══════════════════════════════════════════════════════════════════════════════
-# Smart Healthcare Platform - Docker Compose
-# ═══════════════════════════════════════════════════════════════════════════════
-# Complete microservices setup with MongoDB, Kafka, and all services.
+# All 9 application services + MongoDB + Kafka/Zookeeper
 #
-# Service → Database mapping (each service owns its own database):
-#   auth-service      → auth-management
-#   patient-service   → patient-management
-#   audit-service     → audit-management
-#
-# All services share a single MongoDB instance (separate databases),
-# Kafka cluster, and Docker bridge network.
+# Service → Port mapping:
+#   api-gateway           → 5400
+#   auth-service          → 5000 (internal only)
+#   patient-service       → 5001
+#   audit-service         → 5002 (internal only)
+#   notification-service  → 3003
+#   appointment-service   → 3001
+#   payment-service       → 5004
+#   ai-symptom-service    → 5005
+#   doctor-service        → 5006
+#   telemedicine-service  → 5007 (host) → 5000 (container)
 
 services:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Infrastructure Services
+  # Infrastructure
   # ─────────────────────────────────────────────────────────────────────────────
 
   mongodb:
@@ -78,40 +81,6 @@ services:
   # Application Services
   # ─────────────────────────────────────────────────────────────────────────────
 
-  api-gateway:
-    build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
-    container_name: healthcare-api-gateway
-    restart: unless-stopped
-    ports:
-      - "5400:5400"
-    environment:
-      NODE_ENV: production
-      PORT: 5400
-      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
-      AUTH_SERVICE_URL: http://auth-service:5000
-      PATIENT_SERVICE_URL: http://patient-service:5001
-      AUDIT_SERVICE_URL: http://audit-service:5002
-      NOTIFICATION_SERVICE_URL: http://notification-service:3003
-      APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment-service:3001}
-      DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:5006}
-      TELEMEDICINE_SERVICE_URL: http://telemedicine-service:5000
-      PAYMENT_SERVICE_URL: http://payment-service:5004
-      AI_SYMPTOM_SERVICE_URL: http://ai-symptom-service:5005
-    depends_on:
-      auth-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5400/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - healthcare-network
-
   auth-service:
     build:
       context: .
@@ -142,35 +111,6 @@ services:
     networks:
       - healthcare-network
 
-  doctor-service:
-    build:
-      context: ./doctor-service
-      dockerfile: Dockerfile
-    container_name: healthcare-doctor-service
-    restart: unless-stopped
-    expose:
-      - "5006"
-    ports:
-      - "5006:5006"
-    env_file:
-      - doctor-service/.env
-    environment:
-      NODE_ENV: development
-      PORT: 5006
-      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/doctor_serviceDB?retryWrites=true&w=majority
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5006/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - healthcare-network
-
   patient-service:
     build:
       context: .
@@ -181,14 +121,16 @@ services:
       - "5001"
     ports:
       - "5001:5001"
-    env_file:
-      - patient-management-service/.env
     environment:
       NODE_ENV: production
       PORT: 5001
       MONGO_URI: mongodb://mongodb:27017/patient-management
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-eu-north-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-healthcare-project-se3020}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -216,6 +158,8 @@ services:
       PORT: 5002
       MONGO_URI: mongodb://mongodb:27017/audit-management
       KAFKA_BROKER: kafka:29092
+      KAFKA_CLIENT_ID: audit-management-service
+      KAFKA_GROUP_ID: audit-service-group
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
       PATIENT_SERVICE_URL: http://patient-service:5001
     depends_on:
@@ -242,16 +186,22 @@ services:
       - "3003"
     ports:
       - "3003:3003"
-    env_file:
-      - notification-service/.env
     environment:
       NODE_ENV: production
       PORT: 3003
-      MONGO_URI: mongodb://mongodb:27017/notification-service
+      MONGODB_URI: mongodb://mongodb:27017/notification-service
+      DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
       SERVICE_USER_ID: notification-service
       SERVICE_USER_NAME: notification service
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -276,19 +226,18 @@ services:
       - "3001"
     ports:
       - "3001:3001"
-    env_file:
-      - appointment-service/.env
     environment:
       NODE_ENV: production
       PORT: 3001
-      MONGO_URI: mongodb://mongodb:27017/appointment-management
-      PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
-      DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
-      NOTIFICATION_SERVICE_URL: http://api-gateway:5400/api/notifications
+      MONGODB_URI: mongodb://mongodb:27017/appointment-management
+      DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
       SERVICE_USER_ID: appointment-service
       SERVICE_USER_NAME: appointment service
+      PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
+      DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
     depends_on:
       mongodb:
         condition: service_healthy
@@ -313,14 +262,85 @@ services:
       - "5004"
     ports:
       - "5004:5004"
-    env_file:
-      - payment-service/.env
     environment:
       NODE_ENV: production
       PORT: 5004
+      MONGO_URI: mongodb://mongodb:27017/payment-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8082}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      PAYHERE_MERCHANT_ID: ${PAYHERE_MERCHANT_ID:-}
+      PAYHERE_MERCHANT_SECRET: ${PAYHERE_MERCHANT_SECRET:-}
+      PAYHERE_RETURN_URL: ${PAYHERE_RETURN_URL:-http://localhost:8082/payment/success}
+      PAYHERE_CANCEL_URL: ${PAYHERE_CANCEL_URL:-http://localhost:8082/payment/cancel}
+      PAYHERE_NOTIFY_URL: ${PAYHERE_NOTIFY_URL:-http://localhost:5400/api/payments/notify}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - healthcare-network
-      
+
+  ai-symptom-service:
+    build:
+      context: ./ai-symptom-service
+      dockerfile: Dockerfile
+    container_name: healthcare-ai-symptom-service
+    restart: unless-stopped
+    expose:
+      - "5005"
+    ports:
+      - "5005:5005"
+    environment:
+      NODE_ENV: production
+      PORT: 5005
+      MONGO_URI: mongodb://mongodb:27017/ai-symptom-service
+      GROQ_API_KEY: ${GROQ_API_KEY:-placeholder_groq_key}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5005/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - healthcare-network
+
+  doctor-service:
+    build:
+      context: ./doctor-service
+      dockerfile: Dockerfile
+    container_name: healthcare-doctor-service
+    restart: unless-stopped
+    expose:
+      - "5006"
+    ports:
+      - "5006:5006"
+    environment:
+      NODE_ENV: production
+      PORT: 5006
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/doctor_serviceDB?retryWrites=true&w=majority
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - healthcare-network
+
   telemedicine-service:
     build:
       context: ./telemedicine-service
@@ -331,8 +351,6 @@ services:
       - "5000"
     ports:
       - "5007:5000"
-    env_file:
-      - telemedicine-service/.env
     environment:
       NODE_ENV: production
       PORT: 5000
@@ -357,21 +375,57 @@ services:
     networks:
       - healthcare-network
 
-  ai-symptom-service:
+  client:
     build:
-      context: ./ai-symptom-service
+      context: ../client
       dockerfile: Dockerfile
-    container_name: healthcare-ai-symptom-service
+    container_name: healthcare-client
     restart: unless-stopped
-    expose:
-      - "5005"
     ports:
-      - "5005:5005"
-    env_file:
-      - ai-symptom-service/.env
+      - "8082:8082"
+    environment:
+      # Vite proxy inside the container routes /api → api-gateway service
+      API_GATEWAY_URL: http://api-gateway:5400
+      VITE_API_GATEWAY_URL: http://api-gateway:5400
+      APPOINTMENT_API_URL: http://appointment-service:3001
+      VITE_NOTIFICATION_SERVICE_URL: http://notification-service:3003
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - healthcare-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: healthcare-api-gateway
+    restart: unless-stopped
+    ports:
+      - "5400:5400"
     environment:
       NODE_ENV: production
-      PORT: 5005
+      PORT: 5400
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production}
+      AUTH_SERVICE_URL: http://auth-service:5000
+      PATIENT_SERVICE_URL: http://patient-service:5001
+      AUDIT_SERVICE_URL: http://audit-service:5002
+      NOTIFICATION_SERVICE_URL: http://notification-service:3003
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3001
+      PAYMENT_SERVICE_URL: http://payment-service:5004
+      AI_SYMPTOM_SERVICE_URL: http://ai-symptom-service:5005
+      DOCTOR_SERVICE_URL: http://doctor-service:5006
+      TELEMEDICINE_SERVICE_URL: http://telemedicine-service:5000
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5400/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - healthcare-network
 
@@ -387,8 +441,6 @@ volumes:
   zookeeper-logs:
     driver: local
   kafka-data:
-    driver: local
-  patient-uploads:
     driver: local
 
 # ═══════════════════════════════════════════════════════════════════════════════

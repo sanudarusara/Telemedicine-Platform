@@ -6,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Heart, Mail, Lock, Stethoscope } from "lucide-react";
 import heroImg from "@/assets/healthcare-hero.png";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -15,24 +14,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-
-  const parseResponse = async (response) => {
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
-    }
-    return null;
-  };
-
-  const clearStoredAuth = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("doctor_token");
-    localStorage.removeItem("doctorToken");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("role");
-    localStorage.removeItem("doctor_id");
-    sessionStorage.clear();
-  };
+  const auth = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -45,36 +27,9 @@ const Login = () => {
 
     try {
       setLoading(true);
-      clearStoredAuth();
-
-      const response = await fetch(`${API_BASE_URL}/doctor-auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      const data = await parseResponse(response);
-
-      if (!response.ok) {
-        throw new Error(data?.message || `Login failed with status ${response.status}`);
-      }
-
-      if (!data?.token) {
-        throw new Error("Login succeeded but no token was returned");
-      }
-
-      localStorage.setItem("doctor_token", data.token);
-      localStorage.setItem("role", "doctor");
-
+      await auth.loginDoctor(email, password);
       navigate("/doctor/dashboard", { replace: true });
     } catch (err) {
-      clearStoredAuth();
       setError(err?.message || "Login failed");
     } finally {
       setLoading(false);

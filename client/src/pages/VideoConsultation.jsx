@@ -16,7 +16,9 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
 
-const getDoctorToken = () => localStorage.getItem("doctor_token") || "";
+/** Returns whichever JWT is active — patients use 'token', doctors use 'doctor_token'. */
+const getActiveToken = () =>
+  localStorage.getItem("token") || localStorage.getItem("doctor_token") || "";
 
 const formatDateTime = (value) => {
   if (!value) return { date: "N/A", time: "N/A" };
@@ -49,7 +51,7 @@ const VideoConsultation = () => {
   const [joiningId, setJoiningId] = useState("");
   const [error, setError] = useState("");
 
-  const token = getDoctorToken();
+  const token = getActiveToken();
 
   const fetchAppointments = async () => {
     try {

@@ -16,7 +16,9 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5400/api";
 
-const getDoctorToken = () => localStorage.getItem("doctor_token") || "";
+/** Returns the active doctor JWT, falling back to the generic token if needed. */
+const getDoctorToken = () =>
+  localStorage.getItem("doctor_token") || localStorage.getItem("token") || "";
 
 const formatDateTime = (value) => {
   if (!value) return { date: "N/A", time: "N/A" };

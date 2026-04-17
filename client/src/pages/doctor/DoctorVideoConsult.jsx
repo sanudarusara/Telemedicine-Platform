@@ -58,10 +58,22 @@ const VideoConsultation = () => {
       setLoading(true);
       setError("");
 
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const doctorId = payload.id || payload._id || payload.doctorId;
+      // Fetch doctor profile to get the doctor-service _id (JWT holds auth-service id which differs)
+      const profileRes = await fetch(`${API_BASE_URL}/doctors/profile`, {
+        method: "GET",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json",
+        },
+      });
+      const profileData = await profileRes.json();
+      const doctorId =
+        profileData?._id ||
+        profileData?.id ||
+        profileData?.data?._id ||
+        profileData?.data?.id;
 
-      if (!doctorId) throw new Error("Doctor ID not found in token.");
+      if (!doctorId) throw new Error("Doctor ID not found in profile.");
 
       const response = await fetch(`${API_BASE_URL}/appointments/doctor/${doctorId}/pending`, {
         method: "GET",
@@ -85,7 +97,13 @@ const VideoConsultation = () => {
         ? data
         : [];
 
-      setConsultations(appointments.filter((a) => a.status === "confirmed"));
+      setConsultations(
+        appointments.filter(
+          (a) =>
+            (a.consultationType === "video" || a.type === "video" || a.appointmentType === "video") &&
+            a.status !== "cancelled"
+        )
+      );
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to load appointments");

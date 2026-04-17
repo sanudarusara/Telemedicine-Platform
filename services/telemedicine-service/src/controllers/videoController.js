@@ -1,8 +1,34 @@
 const VideoSession = require("../model/videoSession.model");
 
+const gatewayUrl = () =>
+  (process.env.DOCTOR_SERVICE_URL || "http://api-gateway:5400").replace(/\/+$/, "");
+
+/**
+ * Resolve the doctor-service _id for the authenticated doctor.
+ * The gateway injects the auth-service _id in x-user-id, but appointments
+ * store the doctor-service _id. We call /api/doctors/profile (proxied by the
+ * gateway using the injected headers) to get the correct _id.
+ */
+const fetchDoctorServiceId = async (req) => {
+  const url = `${gatewayUrl()}/api/doctors/profile`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: req.headers.authorization || "",
+      "Content-Type": "application/json",
+      "x-api-key": process.env.INTERNAL_API_KEY || "",
+      "x-gateway": "true",
+      "x-user-id": req.doctor._id,
+      "x-user-role": req.doctor.role,
+      "x-user-email": req.doctor.email || "",
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  return data?._id || data?.id || data?.data?._id || data?.data?.id || req.doctor._id;
+};
+
 const fetchAppointmentById = async (appointmentId, req) => {
-  const gatewayUrl = (process.env.DOCTOR_SERVICE_URL || "http://api-gateway:5400").replace(/\/+$/, "");
-  const url = `${gatewayUrl}/api/appointments/${appointmentId}`;
+  const url = `${gatewayUrl()}/api/appointments/${appointmentId}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -42,15 +68,16 @@ const createVideoRoom = async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    if (String(appointment.doctorId) !== String(req.doctor._id)) {
+    const doctorServiceId = await fetchDoctorServiceId(req);
+    if (String(appointment.doctorId) !== String(doctorServiceId)) {
       return res
         .status(403)
         .json({ message: "You are not allowed to access this appointment" });
     }
 
-    if (appointment.status !== "confirmed") {
+    if (!["confirmed", "pending"].includes(appointment.status)) {
       return res.status(400).json({
-        message: `Only confirmed appointments can start telemedicine. Current status: ${appointment.status}`,
+        message: `Cannot start telemedicine for appointment with status: ${appointment.status}`,
       });
     }
 
@@ -138,7 +165,8 @@ const getVideoSessionByAppointment = async (req, res) => {
       return res.status(404).json({ message: "Video session not found" });
     }
 
-    if (String(session.doctorId) !== String(req.doctor._id)) {
+    const doctorServiceIdView = await fetchDoctorServiceId(req);
+    if (String(session.doctorId) !== String(doctorServiceIdView)) {
       return res
         .status(403)
         .json({ message: "You are not allowed to view this video session" });
@@ -161,7 +189,8 @@ const endVideoSession = async (req, res) => {
       return res.status(404).json({ message: "Video session not found" });
     }
 
-    if (String(session.doctorId) !== String(req.doctor._id)) {
+    const doctorServiceIdEnd = await fetchDoctorServiceId(req);
+    if (String(session.doctorId) !== String(doctorServiceIdEnd)) {
       return res
         .status(403)
         .json({ message: "You are not allowed to end this session" });

@@ -71,12 +71,20 @@ const Appointments = () => {
       throw new Error("Doctor token missing. Please log in again.");
     }
 
-    // Decode doctor id from JWT token
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const doctorId = payload.id || payload._id || payload.doctorId;
+    // Fetch profile first to get the doctor-service _id (JWT holds auth-service id which differs)
+    const profileRes = await fetch(`${API_BASE_URL}/doctors/profile`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    const profileData = await profileRes.json().catch(() => null);
+    const doctorId =
+      profileData?._id ||
+      profileData?.id ||
+      profileData?.data?._id ||
+      profileData?.data?.id;
 
     if (!doctorId) {
-      throw new Error("Doctor ID not found in token.");
+      throw new Error("Doctor ID not found in profile.");
     }
 
     const response = await fetch(

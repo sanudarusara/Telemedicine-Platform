@@ -58,28 +58,24 @@ const Dashboard = () => {
       setLoading(true);
       setError("");
 
-      // Decode the doctor's auth ID from the active token
-      const token =
-        localStorage.getItem("doctor_token") || localStorage.getItem("token") || "";
-      let doctorId = null;
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          doctorId = payload.id || payload._id || payload.doctorId;
-        } catch (_) {}
-      }
+      // Fetch profile first to get the doctor-service _id (not the auth-service id from JWT)
+      const profileRes = await apiClient.get("/api/doctors/profile");
+      const profileData = profileRes.data;
+      const doctorId =
+        profileData?._id ||
+        profileData?.id ||
+        profileData?.data?._id ||
+        profileData?.data?.id;
 
       const appointmentsEndpoint = doctorId
         ? `/api/appointments/doctor/${doctorId}/pending`
         : "/api/doctors/appointments"; // fallback
 
-      const [profileRes, appointmentsRes, prescriptionsRes] = await Promise.all([
-        apiClient.get("/api/doctors/profile"),
+      const [appointmentsRes, prescriptionsRes] = await Promise.all([
         apiClient.get(appointmentsEndpoint),
         apiClient.get("/api/doctors/prescriptions"),
       ]);
 
-      const profileData = profileRes.data;
       const appointmentsData = appointmentsRes.data;
       const prescriptionsData = prescriptionsRes.data;
 

@@ -150,12 +150,13 @@ router.post("/:id/slots/release", async (req, res) => {
 /**
  * GET /api/doctors/:id
  * Return a single doctor profile by doctor-service _id. Used by appointment-service.
+ * Non-ObjectId paths (e.g. "profile") are passed through to the next router.
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid doctor id" });
+      return next(); // not an ObjectId — let doctorRoutes handle it (e.g. /profile)
     }
     const doc = await Doctor.findById(id).select("-password").lean();
     if (!doc) return res.status(404).json({ success: false, message: "Doctor not found" });

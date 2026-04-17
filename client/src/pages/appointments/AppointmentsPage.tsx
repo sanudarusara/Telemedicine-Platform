@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAppointments, cancelAppointment, searchDoctors, getAvailableSlots, createAppointment, downloadReceipt } from "@/services/appointmentsService";
 import type { Appointment } from "@/services/appointmentsService";
-import { createPayment } from "@/services/paymentService";
+import { createPayment, createPayherePayment } from "@/services/paymentService";
 import { Calendar, Filter, Search, Plus, Clock, MapPin, DollarSign, User, Stethoscope, X, Loader2, CreditCard, Calendar as CalendarIcon, FileText, Download, Eye, Building, Video } from "lucide-react";
 import {
   Dialog,
@@ -318,17 +318,38 @@ export default function AppointmentsPage() {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const uid = user._id || user.id || user.userId || userId || '';
 
-      const result = await createPayment({
+      const method = (appointment.selectedPaymentMethod || 'STRIPE').toUpperCase();
+      const payload = {
         userId: uid,
         appointmentId: appointment.id || appointment.raw?._id,
         amount: appointment.fee,
         currency: 'usd',
-        paymentMethod: appointment.selectedPaymentMethod || 'STRIPE',
-      });
+        paymentMethod: method,
+      };
 
-      const { checkoutUrl } = result as any;
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl;
+      const result = method === 'PAYHERE'
+        ? await createPayherePayment(payload)
+        : await createPayment(payload);
+
+      const r = result as any;
+
+      if (method === 'PAYHERE' && r.merchant_id) {
+        // PayHere returns form fields — POST them to the checkout page via a hidden form
+        const PAYHERE_URL = 'https://sandbox.payhere.lk/pay/checkout';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = PAYHERE_URL;
+        Object.entries(r).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = String(value ?? '');
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      } else if (r.checkoutUrl) {
+        window.location.href = r.checkoutUrl;
       } else {
         setError('Payment session could not be created. Please try again.');
       }
@@ -718,7 +739,9 @@ export default function AppointmentsPage() {
                               disabled={paymentLoading === appointment.id}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handlePayment(appointment);
+                                setPaymentAppointment(appointment);
+                                setPaymentMethod("STRIPE");
+                                setPaymentModalOpen(true);
                               }}
                             >
                               {paymentLoading === appointment.id
@@ -970,7 +993,12 @@ export default function AppointmentsPage() {
                 <Button
                   className="w-full gap-2 bg-green-600 hover:bg-green-700"
                   disabled={paymentLoading === selectedAppointment.id}
-                  onClick={() => handlePayment(selectedAppointment)}
+                  onClick={() => {
+                    setDetailsModalOpen(false);
+                    setPaymentAppointment(selectedAppointment);
+                    setPaymentMethod("STRIPE");
+                    setPaymentModalOpen(true);
+                  }}
                 >
                   {paymentLoading === selectedAppointment.id
                     ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -1040,23 +1068,90 @@ export default function AppointmentsPage() {
 
           {paymentAppointment && (
             <div className="space-y-4 py-2">
-              <div className="p-3 bg-muted/30 rounded-lg space-y-2">
-                <p className="text-sm"><span className="font-medium">Doctor:</span> {paymentAppointment.doctorName}</p>
-                <p className="text-sm"><span className="font-medium">Date:</span> {paymentAppointment.date}</p>
-                <p className="text-sm"><span className="font-medium">Time:</span> {paymentAppointment.time}</p>
-                <p className="text-sm"><span className="font-medium">Amount:</span> Rs. {Number(paymentAppointment.fee || paymentAppointment.paymentAmount || 1500).toLocaleString()}</p>
+              {/* Appointment Details */}
+              <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm">Appointment Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Doctor</p>
+                    <p className="font-medium">{paymentAppointment.doctorName}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Specialization</p>
+                    <p className="font-medium">{paymentAppointment.specialization}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Date</p>
+                    <p className="font-medium">{paymentAppointment.date}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Time</p>
+                    <p className="font-medium">{paymentAppointment.time}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Clinic</p>
+                    <p className="font-medium">{paymentAppointment.clinic}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Type</p>
+                    <p className="font-medium capitalize">
+                      {paymentAppointment.consultationType === 'video' ? 'Video Call' : 'In-Clinic'}
+                    </p>
+                  </div>
+                </div>
+                {paymentAppointment.symptoms && (
+                  <div className="pt-1 border-t">
+                    <p className="text-muted-foreground text-xs">Symptoms</p>
+                    <p className="text-sm mt-0.5">{paymentAppointment.symptoms}</p>
+                  </div>
+                )}
               </div>
 
+              {/* Amount */}
+              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium">Total Amount</span>
+                </div>
+                <span className="text-lg font-bold text-green-600">
+                  Rs. {Number(paymentAppointment.fee || paymentAppointment.paymentAmount || 1500).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Gateway Selection */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Payment Method</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as "PAYHERE" | "STRIPE")}
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="PAYHERE">PayHere</option>
-                  <option value="STRIPE">Stripe</option>
-                </select>
+                <label className="text-sm font-medium mb-2 block">Select Payment Gateway</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("STRIPE")}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                      paymentMethod === 'STRIPE'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <CreditCard className="w-6 h-6" />
+                    Stripe
+                    <span className="text-xs text-muted-foreground font-normal">Credit / Debit Card</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("PAYHERE")}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                      paymentMethod === 'PAYHERE'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <DollarSign className="w-6 h-6" />
+                    PayHere
+                    <span className="text-xs text-muted-foreground font-normal">Local Payment</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

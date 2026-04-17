@@ -2,29 +2,28 @@ const Payment = require("../models/Payment");
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");
+const axios = require("axios");
 
-//Create Stripe payment
+// Create Stripe payment
 exports.createPayment = async (req, res) => {
   try {
-    const { userId, appointmentId, amount, currency, paymentMethod } = req.body;
+    const { userId, appointmentId, amount, paymentMethod } = req.body;
 
-    if (!userId || !appointmentId || !amount || !currency) {
+    if (!userId || !appointmentId || !amount || !paymentMethod) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     if (paymentMethod !== "STRIPE") {
-      return res.status(400).json({ message: "Only STRIPE supported currently" });
+      return res.status(400).json({ message: "Only STRIPE supported on this route" });
     }
 
-    const allowedCurrencies = ["usd", "lkr"];
-    if (!allowedCurrencies.includes(currency.toLowerCase())) {
-      return res.status(400).json({ message: "Invalid currency" });
-    }
+    const normalizedCurrency = "LKR";
 
     const payment = new Payment({
       userId,
       appointmentId,
       amount,
+      currency: normalizedCurrency,
       paymentMethod: "STRIPE",
       status: "PENDING",
     });
@@ -37,7 +36,7 @@ exports.createPayment = async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: currency.toLowerCase(),
+            currency: normalizedCurrency.toLowerCase(),
             product_data: {
               name: "Doctor Appointment Payment",
             },
@@ -51,8 +50,8 @@ exports.createPayment = async (req, res) => {
         userId,
         appointmentId,
       },
-      success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/cancel`,
+      success_url: `${process.env.CLIENT_URL}/appointments?payment=success`,
+      cancel_url: `${process.env.CLIENT_URL}/appointments?payment=cancel`,
     });
 
     payment.transactionId = session.id;
@@ -74,13 +73,17 @@ exports.confirmPayment = async (req, res) => {
     const { paymentId } = req.params;
 
     const payment = await Payment.findById(paymentId);
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
 
-    // Simulate success
     payment.status = "SUCCESS";
     await payment.save();
 
-    res.status(200).json({ message: "Payment updated to SUCCESS", payment });
+    res.status(200).json({
+      message: "Payment updated to SUCCESS",
+      payment,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to update payment" });
@@ -89,7 +92,7 @@ exports.confirmPayment = async (req, res) => {
 
 exports.getAllPayments = async (req, res) => {
   try {
-    const payments = await Payment.find();
+    const payments = await Payment.find().sort({ createdAt: -1 });
     res.status(200).json(payments);
   } catch (err) {
     console.error("Error fetching payments:", err);
@@ -100,7 +103,9 @@ exports.getAllPayments = async (req, res) => {
 exports.getPaymentById = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id);
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
 
     res.status(200).json(payment);
   } catch (err) {
@@ -112,25 +117,33 @@ exports.getPaymentById = async (req, res) => {
 exports.updatePaymentStatus = async (req, res) => {
   try {
     const { status, transactionId } = req.body;
+
     const payment = await Payment.findById(req.params.id);
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
 
     if (!["PENDING", "SUCCESS", "FAILED"].includes(status)) {
       return res.status(400).json({ message: "Invalid status value" });
     }
 
     payment.status = status;
-    if (transactionId) payment.transactionId = transactionId;
+    if (transactionId) {
+      payment.transactionId = transactionId;
+    }
 
     const updatedPayment = await payment.save();
-    res.status(200).json({ message: "Payment updated", data: updatedPayment });
+    res.status(200).json({
+      message: "Payment updated",
+      data: updatedPayment,
+    });
   } catch (err) {
     console.error("Error updating payment:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-//Stripe webhook
+// Stripe webhook
 exports.handleStripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
 
@@ -153,10 +166,23 @@ exports.handleStripeWebhook = async (req, res) => {
       const paymentId = session.metadata?.paymentId;
 
       if (paymentId) {
-        await Payment.findByIdAndUpdate(paymentId, {
-          status: "SUCCESS",
-          transactionId: session.id,
-        });
+        const payment = await Payment.findByIdAndUpdate(
+          paymentId,
+          {
+            status: "SUCCESS",
+            transactionId: session.id,
+          },
+          { new: true }
+        );
+
+        if (payment) {
+          await axios.patch(
+            `http://appointment-service:3001/api/appointments/${payment.appointmentId}/status`,
+            {
+              paymentStatus: "paid",
+            }
+          );
+        }
       }
     }
 
@@ -178,20 +204,30 @@ exports.handleStripeWebhook = async (req, res) => {
   }
 };
 
-//Create Payhere payment
+// Create PayHere payment
 exports.createPayHerePayment = async (req, res) => {
   try {
-    const { userId, appointmentId, amount } = req.body;
+    console.log("PayHere req.body:", req.body);
+    console.log("PAYHERE_MERCHANT_ID:", process.env.PAYHERE_MERCHANT_ID);
+    console.log("PAYHERE_RETURN_URL:", process.env.PAYHERE_RETURN_URL);
+
+    const { userId, appointmentId, amount, paymentMethod } = req.body;
 
     if (!userId || !appointmentId || !amount) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    if (paymentMethod && paymentMethod !== "PAYHERE") {
+      return res.status(400).json({ message: "Only PAYHERE supported on this route" });
+    }
+
+    const normalizedCurrency = "LKR";
+
     const payment = await Payment.create({
       userId,
       appointmentId,
       amount,
-      currency: "LKR",
+      currency: normalizedCurrency,
       paymentMethod: "PAYHERE",
       status: "PENDING",
     });
@@ -200,7 +236,7 @@ exports.createPayHerePayment = async (req, res) => {
       process.env.PAYHERE_MERCHANT_ID,
       payment._id.toString(),
       amount,
-      "LKR",
+      normalizedCurrency,
       process.env.PAYHERE_MERCHANT_SECRET
     );
 
@@ -213,7 +249,7 @@ exports.createPayHerePayment = async (req, res) => {
       order_id: payment._id.toString(),
       items: "Doctor Appointment Payment",
       amount: Number(amount).toFixed(2),
-      currency: "LKR",
+      currency: normalizedCurrency,
       hash,
 
       first_name: "Test",
@@ -239,19 +275,16 @@ function generateHash(merchant_id, order_id, amount, currency, merchant_secret) 
     .digest("hex")
     .toUpperCase();
 
-  const hash = crypto
+  return crypto
     .createHash("md5")
     .update(merchant_id + order_id + formattedAmount + currency + hashedSecret)
     .digest("hex")
     .toUpperCase();
-
-  return hash;
 }
 
-//PayHere webhook
+// PayHere webhook
 exports.handlePayHereNotify = async (req, res) => {
   try {
-    
     const {
       merchant_id,
       order_id,
@@ -291,13 +324,22 @@ exports.handlePayHereNotify = async (req, res) => {
     if (status_code === "2") {
       payment.status = "SUCCESS";
       payment.transactionId = payment_id || payment.transactionId;
+
+      await payment.save();
+
+      await axios.patch(
+        `http://appointment-service:3001/api/appointments/${payment.appointmentId}/status`,
+        {
+          paymentStatus: "paid",
+        }
+      );
     } else if (status_code === "-1" || status_code === "-2") {
       payment.status = "FAILED";
+      await payment.save();
     } else {
       payment.status = "PENDING";
+      await payment.save();
     }
-
-    await payment.save();
 
     return res.status(200).send("OK");
   } catch (error) {

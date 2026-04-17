@@ -1,4 +1,5 @@
 const appointmentService = require('../services/appointmentService');
+const PDFDocument = require('pdfkit');
 const {
   validateAppointment,
   validateStatusUpdate,
@@ -13,14 +14,14 @@ class AppointmentController {
   async searchDoctors(req, res, next) {
     try {
       const { specialty, name, date } = req.query;
-            
+
       const { error } = validateSearch({ specialty, name, date });
       if (error) {
         return res.status(400).json({ error: error.details[0].message });
       }
-            
+
       const doctors = await appointmentService.searchDoctors(specialty, name, date);
-            
+
       res.json({
         success: true,
         count: doctors.length,
@@ -30,18 +31,18 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Get available time slots for a doctor
   async getAvailableSlots(req, res, next) {
     try {
       const { doctorId, date } = req.query;
-            
+
       if (!doctorId || !date) {
         return res.status(400).json({ error: 'doctorId and date are required' });
       }
-            
+
       const slots = await appointmentService.getAvailableSlots(doctorId, date);
-            
+
       res.json({
         success: true,
         doctorId: doctorId,
@@ -52,7 +53,7 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Book a new appointment
   async bookAppointment(req, res, next) {
     try {
@@ -97,7 +98,7 @@ class AppointmentController {
       }
 
       const appointment = await appointmentService.bookAppointment(appointmentData);
-            
+
       res.status(201).json({
         success: true,
         message: 'Appointment booked successfully',
@@ -107,18 +108,18 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Get all appointments
   async getAllAppointments(req, res, next) {
     try {
       const { patientId, doctorId, status } = req.query;
-            
+
       const appointments = await appointmentService.getAllAppointments({
         patientId,
         doctorId,
         status
       });
-            
+
       res.json({
         success: true,
         count: appointments.length,
@@ -128,12 +129,12 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Get appointment by ID
   async getAppointmentById(req, res, next) {
     try {
       const appointment = await appointmentService.getAppointmentById(req.params.id);
-            
+
       res.json({
         success: true,
         data: appointment
@@ -190,41 +191,48 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Update appointment status
   async updateAppointmentStatus(req, res, next) {
     try {
-      const { error } = validateStatusUpdate(req.body);
-      if (error) {
-        return res.status(400).json({ error: error.details[0].message });
+      const { status, paymentStatus } = req.body;
+
+      const appointment = await appointmentService.getAppointmentById(req.params.id);
+
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
       }
-            
-      const appointment = await appointmentService.updateAppointmentStatus(
-        req.params.id,
-        req.body.status,
-        req.body.notes
-      );
-            
+
+      if (status) {
+        appointment.status = status;
+      }
+
+      if (paymentStatus) {
+        appointment.paymentStatus = paymentStatus;
+      }
+
+      await appointment.save();
+
       res.json({
         success: true,
-        message: `Appointment status updated to ${req.body.status}`,
+        message: "Appointment updated successfully",
         data: appointment
       });
     } catch (error) {
       next(error);
     }
   }
-    
+
   // Cancel appointment
   async cancelAppointment(req, res, next) {
     try {
       const { reason } = req.body;
-            
+
       const appointment = await appointmentService.cancelAppointment(
         req.params.id,
         reason
       );
-            
+
       res.json({
         success: true,
         message: 'Appointment cancelled successfully',
@@ -234,7 +242,7 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Reschedule appointment
   async rescheduleAppointment(req, res, next) {
     try {
@@ -242,14 +250,14 @@ class AppointmentController {
       if (error) {
         return res.status(400).json({ error: error.details[0].message });
       }
-            
+
       const appointment = await appointmentService.rescheduleAppointment(
         req.params.id,
         req.body.newDate,
         req.body.newTimeSlot,
         req.body.reason
       );
-            
+
       res.json({
         success: true,
         message: 'Appointment rescheduled successfully',
@@ -259,14 +267,14 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Get upcoming appointments for patient
   async getUpcomingAppointments(req, res, next) {
     try {
       const { patientId } = req.params;
-            
+
       const appointments = await appointmentService.getUpcomingAppointments(patientId);
-            
+
       res.json({
         success: true,
         count: appointments.length,
@@ -276,19 +284,208 @@ class AppointmentController {
       next(error);
     }
   }
-    
+
   // Get pending appointments for doctor
   async getPendingAppointmentsForDoctor(req, res, next) {
     try {
       const { doctorId } = req.params;
-            
+
       const appointments = await appointmentService.getPendingAppointmentsForDoctor(doctorId);
-            
+
       res.json({
         success: true,
         count: appointments.length,
         data: appointments
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async downloadAppointmentReceipt(req, res, next) {
+    try {
+      const appointment = await appointmentService.getAppointmentById(req.params.id);
+
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      if (appointment.paymentStatus !== "paid") {
+        return res.status(400).json({ error: "Payment not completed yet" });
+      }
+
+      const doc = new PDFDocument({
+        size: "A4",
+        margin: 50
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=receipt-${appointment.appointmentId}.pdf`
+      );
+
+      doc.pipe(res);
+
+      const formatDate = (date) => {
+        return new Date(date).toLocaleDateString("en-LK", {
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        });
+      };
+
+      const formatDateTime = (date) => {
+        return new Date(date).toLocaleString("en-LK", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      };
+
+      const drawRow = (label, value, y) => {
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(11)
+          .fillColor("#1f2937")
+          .text(label, 60, y, { width: 170 });
+
+        doc
+          .font("Helvetica")
+          .fontSize(11)
+          .fillColor("#4b5563")
+          .text(value || "-", 220, y, { width: 320 });
+      };
+
+      // Background header band
+      doc
+        .rect(0, 0, doc.page.width, 115)
+        .fill("#0f172a");
+
+      // Header
+      doc
+        .fillColor("#ffffff")
+        .font("Helvetica-Bold")
+        .fontSize(24)
+        .text("Payment Receipt", 50, 35);
+
+      doc
+        .font("Helvetica")
+        .fontSize(10)
+        .fillColor("#cbd5e1")
+        .text("Telemedicine Appointment System", 50, 68);
+
+      doc
+        .font("Helvetica")
+        .fontSize(10)
+        .text(`Receipt No: ${appointment.appointmentId}`, 380, 40, { align: "right" })
+        .text(`Generated: ${formatDateTime(new Date())}`, 330, 58, { align: "right" });
+
+      // Status badge
+      doc
+        .roundedRect(50, 130, 110, 26, 8)
+        .fill("#dcfce7");
+
+      doc
+        .fillColor("#166534")
+        .font("Helvetica-Bold")
+        .fontSize(11)
+        .text("PAID", 88, 138);
+
+      // Intro text
+      doc
+        .fillColor("#111827")
+        .font("Helvetica-Bold")
+        .fontSize(16)
+        .text("Appointment Payment Confirmation", 50, 180);
+
+      doc
+        .font("Helvetica")
+        .fontSize(11)
+        .fillColor("#6b7280")
+        .text(
+          "This document confirms that the following appointment payment has been successfully completed.",
+          50,
+          205,
+          { width: 500, lineGap: 2 }
+        );
+
+      // Main details box
+      doc
+        .roundedRect(50, 245, 495, 255, 12)
+        .lineWidth(1)
+        .strokeColor("#e5e7eb")
+        .stroke();
+
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(13)
+        .fillColor("#111827")
+        .text("Appointment Details", 65, 262);
+
+      let y = 295;
+      const gap = 24;
+
+      drawRow("Appointment ID", appointment.appointmentId, y); y += gap;
+      drawRow("Patient Name", appointment.patientName, y); y += gap;
+      drawRow("Patient Email", appointment.patientEmail, y); y += gap;
+      drawRow("Doctor Name", appointment.doctorName, y); y += gap;
+      drawRow("Doctor Email", appointment.doctorEmail, y); y += gap;
+      drawRow("Specialty", appointment.specialty, y); y += gap;
+      drawRow("Consultation Type", appointment.consultationType, y); y += gap;
+      drawRow("Appointment Date", formatDate(appointment.date), y); y += gap;
+      drawRow("Time Slot", appointment.timeSlot, y); y += gap;
+      drawRow("Appointment Status", appointment.status, y); y += gap;
+      drawRow("Payment Status", appointment.paymentStatus, y);
+
+      // Amount box
+      doc
+        .roundedRect(50, 525, 495, 85, 12)
+        .fill("#f8fafc");
+
+      doc
+        .fillColor("#475569")
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .text("Total Amount Paid", 65, 545);
+
+      doc
+        .fillColor("#0f172a")
+        .font("Helvetica-Bold")
+        .fontSize(26)
+        .text(`LKR ${Number(appointment.paymentAmount || 0).toFixed(2)}`, 65, 565);
+
+      // Footer note
+      doc
+        .moveTo(50, 640)
+        .lineTo(545, 640)
+        .strokeColor("#e5e7eb")
+        .stroke();
+
+      doc
+        .font("Helvetica")
+        .fontSize(10)
+        .fillColor("#6b7280")
+        .text(
+          "This is a system-generated receipt and does not require a signature.",
+          50,
+          655,
+          { align: "center", width: 495 }
+        );
+
+      doc
+        .fontSize(9)
+        .fillColor("#94a3b8")
+        .text(
+          `Created on ${formatDateTime(new Date())}`,
+          50,
+          675,
+          { align: "center", width: 495 }
+        );
+
+      doc.end();
     } catch (error) {
       next(error);
     }

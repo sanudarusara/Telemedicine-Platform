@@ -30,6 +30,7 @@ router.get('/doctors/available-slots', appointmentController.getAvailableSlots);
 router.post('/', upload.single('report'), appointmentController.bookAppointment);
 router.get('/', appointmentController.getAllAppointments);
 router.get('/:id', appointmentController.getAppointmentById);
+router.get('/:id/receipt', appointmentController.downloadAppointmentReceipt);
 // Reports: list and download
 router.get('/:id/reports', appointmentController.getAppointmentReports);
 router.get('/:id/reports/:filename', appointmentController.downloadReport);

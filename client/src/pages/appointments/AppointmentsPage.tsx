@@ -4,7 +4,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { getAppointments, cancelAppointment, searchDoctors, getAvailableSlots, createAppointment } from "@/services/appointmentsService";
+import { getAppointments, cancelAppointment, searchDoctors, getAvailableSlots, createAppointment, downloadReceipt } from "@/services/appointmentsService";
 import type { Appointment } from "@/services/appointmentsService";
 import { Calendar, Filter, Search, Plus, Clock, MapPin, DollarSign, User, Stethoscope, X, Loader2, CreditCard, Calendar as CalendarIcon, FileText, Download, Eye, Building, Video } from "lucide-react";
 import {
@@ -29,7 +29,7 @@ async function fetchDoctorDetailsFromSearch(doctorId: string) {
     const results = await searchDoctors({});
     const doctors = getArrayFromResponse(results);
     const doctor = doctors.find((d: any) => (d._id === doctorId || d.id === doctorId));
-    
+
     if (doctor) {
       return {
         name: doctor.name || doctor.fullName,
@@ -49,23 +49,24 @@ async function fetchDoctorDetailsFromSearch(doctorId: string) {
 function mapAppointment(a: any, doctorDetails?: any) {
   const doctor = doctorDetails || (typeof a.doctorId === 'object' && a.doctorId !== null ? a.doctorId : null);
   const slot = typeof a.slotId === 'object' && a.slotId !== null ? a.slotId : null;
-  const fee = doctor?.fee || a.fee || a.consultationFee || a.feeAmount || 1500;
-  
+  const fee = doctor?.fee || a.fee || a.consultationFee || a.feeAmount || a.paymentAmount || 1500;
+
   return {
     id: a._id || a.id || '',
     doctorId: doctor?._id || doctor?.id || a.doctorId,
     doctorName: doctor?.name || a.doctorName || 'Doctor',
-    specialization: doctor?.specialty || doctor?.specialization || a.specialization || 'General Physician',
+    specialization: doctor?.specialty || doctor?.specialization || a.specialization || a.specialty || 'General Physician',
     clinic: doctor?.clinic || a.clinic || 'Main Clinic',
     clinicAddress: doctor?.clinicAddress || a.clinicAddress || '',
     date: slot?.date || (a.date ? new Date(a.date).toLocaleDateString() : 'Date not set'),
     rawDate: a.date,
     time: slot?.startTime || a.timeSlot || 'Time not set',
     status: (a.status || 'pending'),
+    paymentStatus: a.paymentStatus || 'pending',
     fee: fee,
     note: a.note || a.notes || '',
     symptoms: a.symptoms || '',
-    reports: a.reports || [], // Add reports array
+    reports: a.reports || [],
     consultationType: a.consultationType || 'clinic',
     createdAt: a.createdAt || a.date,
     raw: a
@@ -86,11 +87,16 @@ export default function AppointmentsPage() {
   const [selectedAppointment, setSelectedAppointment] = React.useState<any | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = React.useState(false);
   const [enrichedAppointments, setEnrichedAppointments] = React.useState<any[]>([]);
-  
+
+  const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
+  const [paymentAppointment, setPaymentAppointment] = React.useState<any | null>(null);
+  const [paymentMethod, setPaymentMethod] = React.useState<"PAYHERE" | "STRIPE">("PAYHERE");
+  const [paymentLoading, setPaymentLoading] = React.useState(false);
+
   // Report viewing state
   const [reportViewerOpen, setReportViewerOpen] = React.useState(false);
   const [selectedReport, setSelectedReport] = React.useState<any | null>(null);
-  
+
   // Reschedule state
   const [rescheduleModalOpen, setRescheduleModalOpen] = React.useState(false);
   const [rescheduleAppointment, setRescheduleAppointment] = React.useState<any | null>(null);
@@ -99,23 +105,35 @@ export default function AppointmentsPage() {
   const [selectedSlot, setSelectedSlot] = React.useState<string>("");
   const [slotsLoading, setSlotsLoading] = React.useState(false);
   const [rescheduleLoading, setRescheduleLoading] = React.useState(false);
+
   // Cancel confirmation state
   const [confirmCancelOpen, setConfirmCancelOpen] = React.useState(false);
   const [cancelTarget, setCancelTarget] = React.useState<any | null>(null);
   const [cancelLoading, setCancelLoading] = React.useState(false);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentResult = params.get("payment");
+
+    if (paymentResult === "success") {
+      const cleanUrl = `${window.location.origin}/appointments`;
+      window.history.replaceState({}, document.title, cleanUrl);
+      window.location.reload();
+    }
+  }, []);
+
   // Fetch appointments and enrich with doctor/center details
   React.useEffect(() => {
     let mounted = true;
-    
+
     async function fetchAndEnrichAppointments() {
       setLoading(true);
       setError(null);
-      
+
       try {
         const params: any = {};
         if (statusFilter) params.status = statusFilter;
-        
+
         let patientId = null;
         try {
           const raw = localStorage.getItem('user');
@@ -131,17 +149,17 @@ export default function AppointmentsPage() {
         } catch (e) {
           console.error("Failed to parse user from localStorage:", e);
         }
-        
+
         if (!patientId) {
           setError("Please sign in to view your appointments");
           setLoading(false);
           return;
         }
-        
+
         const appointmentsData = await getAppointments(params);
-        
+
         if (!mounted) return;
-        
+
         let allDoctors: any[] = [];
         try {
           const doctorsResult = await searchDoctors({});
@@ -149,13 +167,13 @@ export default function AppointmentsPage() {
         } catch (err) {
           console.error("Failed to fetch doctors list:", err);
         }
-        
+
         const enriched = appointmentsData.map((appointment: any) => {
           let doctorDetails = null;
-          const doctorId = typeof appointment.doctorId === 'string' 
-            ? appointment.doctorId 
+          const doctorId = typeof appointment.doctorId === 'string'
+            ? appointment.doctorId
             : appointment.doctorId?._id || appointment.doctorId?.id;
-          
+
           if (doctorId && allDoctors.length > 0) {
             const foundDoctor = allDoctors.find((d: any) => (d._id === doctorId || d.id === doctorId));
             if (foundDoctor) {
@@ -168,7 +186,7 @@ export default function AppointmentsPage() {
               };
             }
           }
-          
+
           if (!doctorDetails && typeof appointment.doctorId === 'object' && appointment.doctorId !== null) {
             doctorDetails = {
               name: appointment.doctorId.name,
@@ -177,10 +195,10 @@ export default function AppointmentsPage() {
               clinic: appointment.doctorId.clinic,
             };
           }
-          
+
           return mapAppointment(appointment, doctorDetails);
         });
-        
+
         setEnrichedAppointments(enriched);
         setAppointments(appointmentsData);
       } catch (err: any) {
@@ -190,15 +208,15 @@ export default function AppointmentsPage() {
         setLoading(false);
       }
     }
-    
+
     fetchAndEnrichAppointments();
-    
+
     const interval = setInterval(() => {
       if (!loading) {
         fetchAndEnrichAppointments();
       }
     }, 30000);
-    
+
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -254,8 +272,8 @@ export default function AppointmentsPage() {
 
       const enriched = refreshed.map((appointment: any) => {
         let doctorDetails = null;
-        const doctorId = typeof appointment.doctorId === 'string' 
-          ? appointment.doctorId 
+        const doctorId = typeof appointment.doctorId === 'string'
+          ? appointment.doctorId
           : appointment.doctorId?._id || appointment.doctorId?.id;
 
         if (doctorId && allDoctors.length > 0) {
@@ -296,7 +314,85 @@ export default function AppointmentsPage() {
   };
 
   const handlePayment = (appointment: any) => {
-    alert(`Payment gateway integration would go here for appointment with ${appointment.doctorName}\nAmount: Rs. ${appointment.fee.toLocaleString()}`);
+    setPaymentAppointment(appointment);
+    setPaymentMethod("PAYHERE");
+    setPaymentModalOpen(true);
+  };
+
+  const proceedPayment = async () => {
+    if (!paymentAppointment || !userId) return;
+
+    try {
+      setPaymentLoading(true);
+      setError(null);
+
+      const payload = {
+        userId,
+        appointmentId:
+          paymentAppointment.id ||
+          paymentAppointment._id ||
+          paymentAppointment.appointmentId,
+        amount: Number(paymentAppointment.fee || paymentAppointment.paymentAmount || 1500),
+        paymentMethod,
+      };
+
+      if (paymentMethod === "STRIPE") {
+        const response = await fetch("http://localhost:5400/api/payments/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.message || "Failed to create Stripe payment");
+        }
+
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+          return;
+        }
+
+        throw new Error("Stripe checkout URL not returned");
+      }
+
+      const response = await fetch("http://localhost:5400/api/payments/payhere-create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to create PayHere payment");
+      }
+
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = "https://sandbox.payhere.lk/pay/checkout";
+
+      Object.entries(data).forEach(([key, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = String(value ?? "");
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch (err: any) {
+      console.error("Payment error:", err);
+      setError(err?.message || "Failed to start payment");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const openRescheduleModal = async (appointment: any) => {
@@ -309,7 +405,7 @@ export default function AppointmentsPage() {
 
   const fetchSlotsForReschedule = async () => {
     if (!newDate || !rescheduleAppointment?.doctorId) return;
-    
+
     try {
       setSlotsLoading(true);
       const results = await getAvailableSlots(rescheduleAppointment.doctorId, newDate);
@@ -327,19 +423,19 @@ export default function AppointmentsPage() {
       setError("Please select a time slot");
       return;
     }
-    
+
     if (!newDate) {
       setError("Please select a date");
       return;
     }
-    
+
     try {
       setRescheduleLoading(true);
-      
+
       const originalNote = rescheduleAppointment?.note || rescheduleAppointment?.raw?.note || rescheduleAppointment?.raw?.notes || '';
       const originalSymptoms = rescheduleAppointment?.symptoms || rescheduleAppointment?.raw?.symptoms || '';
       const originalConsultationType = rescheduleAppointment?.consultationType || 'clinic';
-      
+
       const payload = {
         patientId: userId,
         doctorId: rescheduleAppointment.doctorId,
@@ -347,19 +443,19 @@ export default function AppointmentsPage() {
         timeSlot: selectedSlot,
         consultationType: originalConsultationType,
         symptoms: originalSymptoms,
-        notes: originalNote 
+        notes: originalNote
           ? `${originalNote}\n\n[Rescheduled from original appointment ${rescheduleAppointment.id} on ${rescheduleAppointment.date} at ${rescheduleAppointment.time}]`
           : `Rescheduled from original appointment ${rescheduleAppointment.id} on ${rescheduleAppointment.date} at ${rescheduleAppointment.time}`,
       };
-      
+
       await createAppointment(payload);
       await cancelAppointment(rescheduleAppointment.id, `Rescheduled by user to ${newDate} at ${selectedSlot}`);
-      
+
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
       if (userId) params.patientId = userId;
       const refreshed = await getAppointments(params);
-      
+
       let allDoctors: any[] = [];
       try {
         const doctorsResult = await searchDoctors({});
@@ -367,13 +463,13 @@ export default function AppointmentsPage() {
       } catch (err) {
         console.error("Failed to fetch doctors list:", err);
       }
-      
+
       const enriched = refreshed.map((appointment: any) => {
         let doctorDetails = null;
-        const doctorId = typeof appointment.doctorId === 'string' 
-          ? appointment.doctorId 
+        const doctorId = typeof appointment.doctorId === 'string'
+          ? appointment.doctorId
           : appointment.doctorId?._id || appointment.doctorId?.id;
-        
+
         if (doctorId && allDoctors.length > 0) {
           const foundDoctor = allDoctors.find((d: any) => (d._id === doctorId || d.id === doctorId));
           if (foundDoctor) {
@@ -386,7 +482,7 @@ export default function AppointmentsPage() {
             };
           }
         }
-        
+
         if (!doctorDetails && typeof appointment.doctorId === 'object' && appointment.doctorId !== null) {
           doctorDetails = {
             name: appointment.doctorId.name,
@@ -395,15 +491,15 @@ export default function AppointmentsPage() {
             clinic: appointment.doctorId.clinic,
           };
         }
-        
+
         return mapAppointment(appointment, doctorDetails);
       });
-      
+
       setEnrichedAppointments(enriched);
       setAppointments(refreshed);
       setRescheduleModalOpen(false);
       setError(null);
-      
+
       alert("Appointment rescheduled successfully! Your original notes and symptoms have been preserved.");
     } catch (e: any) {
       setError(e?.message || 'Failed to reschedule appointment');
@@ -439,7 +535,6 @@ export default function AppointmentsPage() {
   };
 
   const downloadReport = (report: any) => {
-    // If the report has a URL, open it for download
     if (report.path || report.url) {
       window.open(report.path || report.url, '_blank');
     } else {
@@ -486,7 +581,7 @@ export default function AppointmentsPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-medium text-foreground mb-2 block">Filter by Status</label>
                   <div className="relative">
@@ -539,8 +634,8 @@ export default function AppointmentsPage() {
               <Card className="text-center py-16 border-destructive">
                 <CardContent>
                   <p className="text-destructive font-medium">{error}</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="mt-4"
                     onClick={() => window.location.reload()}
                   >
@@ -557,8 +652,8 @@ export default function AppointmentsPage() {
                   <Calendar className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
                   <h3 className="text-xl font-semibold mb-2">No Appointments Found</h3>
                   <p className="text-muted-foreground mb-6">
-                    {query || statusFilter 
-                      ? "Try adjusting your search filters" 
+                    {query || statusFilter
+                      ? "Try adjusting your search filters"
                       : "You don't have any appointments yet"}
                   </p>
                   {!query && !statusFilter && (
@@ -576,8 +671,8 @@ export default function AppointmentsPage() {
               <>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {paginatedAppointments.map((appointment, index) => (
-                    <Card 
-                      key={appointment.id || index} 
+                    <Card
+                      key={appointment.id || index}
                       className="border shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group"
                       onClick={() => viewAppointmentDetails(appointment)}
                     >
@@ -585,11 +680,10 @@ export default function AppointmentsPage() {
                         {/* Status Badge */}
                         <div className="flex justify-between items-start">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${
-                              appointment.status === 'confirmed' ? 'bg-green-600' :
+                            <div className={`w-1.5 h-1.5 rounded-full ${appointment.status === 'confirmed' ? 'bg-green-600' :
                               appointment.status === 'pending' ? 'bg-yellow-600' :
-                              appointment.status === 'cancelled' ? 'bg-red-600' : 'bg-blue-600'
-                            }`} />
+                                appointment.status === 'cancelled' ? 'bg-red-600' : 'bg-blue-600'
+                              }`} />
                             {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                           </span>
                           {appointment.reports && appointment.reports.length > 0 && (
@@ -637,9 +731,9 @@ export default function AppointmentsPage() {
 
                         {/* Action Buttons */}
                         <div className="flex gap-2 pt-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="flex-1"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -648,11 +742,34 @@ export default function AppointmentsPage() {
                           >
                             View Details
                           </Button>
-                          
-                          {appointment.status === 'confirmed' && (
-                            <Button 
-                              variant="default" 
-                              size="sm" 
+
+                          {appointment.paymentStatus === 'paid' ? (
+                            <div className="flex flex-1 gap-2">
+                              <Button
+                                size="sm"
+                                className="flex-1 bg-green-500 cursor-not-allowed hover:bg-green-400"
+                                disabled
+                              >
+                                Paid
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="px-3"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadReceipt(appointment.id || appointment._id);
+                                }}
+                                title="Download Receipt"
+                              >
+                                ⬇
+                              </Button>
+                            </div>
+                          ) : appointment.status === 'confirmed' && (
+                            <Button
+                              variant="default"
+                              size="sm"
                               className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -660,15 +777,15 @@ export default function AppointmentsPage() {
                               }}
                             >
                               <CreditCard className="w-3 h-3" />
-                              Pay Here
+                              Pay Now
                             </Button>
                           )}
-                          
+
                           {appointment.status === 'pending' && (
                             <>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className="flex-1 gap-2"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -678,9 +795,9 @@ export default function AppointmentsPage() {
                                 <CalendarIcon className="w-3 h-3" />
                                 Reschedule
                               </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="sm" 
+                              <Button
+                                variant="destructive"
+                                size="sm"
                                 className="flex-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -708,7 +825,7 @@ export default function AppointmentsPage() {
                     >
                       Previous
                     </Button>
-                    
+
                     <div className="flex items-center gap-1">
                       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                         let pageNum;
@@ -721,7 +838,7 @@ export default function AppointmentsPage() {
                         } else {
                           pageNum = page - 2 + i;
                         }
-                        
+
                         if (pageNum > 0 && pageNum <= totalPages) {
                           return (
                             <Button
@@ -778,11 +895,10 @@ export default function AppointmentsPage() {
               <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                 <span className="text-sm font-medium">Status</span>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedAppointment.status)}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    selectedAppointment.status === 'confirmed' ? 'bg-green-600' :
+                  <div className={`w-1.5 h-1.5 rounded-full ${selectedAppointment.status === 'confirmed' ? 'bg-green-600' :
                     selectedAppointment.status === 'pending' ? 'bg-yellow-600' :
-                    selectedAppointment.status === 'cancelled' ? 'bg-red-600' : 'bg-blue-600'
-                  }`} />
+                      selectedAppointment.status === 'cancelled' ? 'bg-red-600' : 'bg-blue-600'
+                    }`} />
                   {selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1)}
                 </span>
               </div>
@@ -899,20 +1015,24 @@ export default function AppointmentsPage() {
               )}
 
               {/* Payment Button in Modal for Confirmed Appointments */}
-              {selectedAppointment.status === 'confirmed' && (
-                <Button 
+              {selectedAppointment.paymentStatus === 'paid' ? (
+                <Button className="w-full bg-gray-400 hover:bg-gray-400" disabled>
+                  Paid
+                </Button>
+              ) : selectedAppointment.status === 'confirmed' ? (
+                <Button
                   className="w-full gap-2 bg-green-600 hover:bg-green-700"
                   onClick={() => handlePayment(selectedAppointment)}
                 >
                   <CreditCard className="w-4 h-4" />
                   Pay Now
                 </Button>
-              )}
+              ) : null}
 
               {/* Reschedule Button in Modal for Pending Appointments */}
               {selectedAppointment.status === 'pending' && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full gap-2"
                   onClick={() => {
                     setDetailsModalOpen(false);
@@ -955,6 +1075,62 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Payment Modal */}
+      <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary" />
+              Choose Payment Method
+            </DialogTitle>
+            <DialogDescription>
+              Select your payment gateway to continue
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentAppointment && (
+            <div className="space-y-4 py-2">
+              <div className="p-3 bg-muted/30 rounded-lg space-y-2">
+                <p className="text-sm"><span className="font-medium">Doctor:</span> {paymentAppointment.doctorName}</p>
+                <p className="text-sm"><span className="font-medium">Date:</span> {paymentAppointment.date}</p>
+                <p className="text-sm"><span className="font-medium">Time:</span> {paymentAppointment.time}</p>
+                <p className="text-sm"><span className="font-medium">Amount:</span> Rs. {Number(paymentAppointment.fee || paymentAppointment.paymentAmount || 1500).toLocaleString()}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as "PAYHERE" | "STRIPE")}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="PAYHERE">PayHere</option>
+                  <option value="STRIPE">Stripe</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPaymentModalOpen(false)}
+              disabled={paymentLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={proceedPayment}
+              disabled={paymentLoading}
+              className="gap-2 bg-green-600 hover:bg-green-700"
+            >
+              {paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+              Continue Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Report Viewer Modal */}
       <Dialog open={reportViewerOpen} onOpenChange={setReportViewerOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh]">
@@ -984,19 +1160,19 @@ export default function AppointmentsPage() {
                     )}
                   </div>
                 </div>
-                
+
                 {/* Preview for images */}
                 {selectedReport.mimeType?.startsWith('image/') && (selectedReport.path || selectedReport.url) && (
                   <div className="border rounded-lg p-2">
-                    <img 
-                      src={selectedReport.path || selectedReport.url} 
+                    <img
+                      src={selectedReport.path || selectedReport.url}
                       alt="Report preview"
                       className="max-w-full h-auto rounded"
                       style={{ maxHeight: '400px', margin: '0 auto' }}
                     />
                   </div>
                 )}
-                
+
                 {/* For PDFs and other files */}
                 {selectedReport.mimeType === 'application/pdf' && (selectedReport.path || selectedReport.url) && (
                   <div className="border rounded-lg p-2">
@@ -1049,7 +1225,9 @@ export default function AppointmentsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmCancelOpen(false); setCancelTarget(null); }}>Keep Appointment</Button>
+            <Button variant="outline" onClick={() => { setConfirmCancelOpen(false); setCancelTarget(null); }}>
+              Keep Appointment
+            </Button>
             <Button className="ml-2" disabled={cancelLoading} onClick={executeCancel}>
               {cancelLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Confirm Cancel
@@ -1086,9 +1264,9 @@ export default function AppointmentsPage() {
                 className="h-11"
               />
               {newDate && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="mt-2 w-full"
                   onClick={fetchSlotsForReschedule}
                   disabled={slotsLoading}
@@ -1148,8 +1326,8 @@ export default function AppointmentsPage() {
             <Button variant="outline" onClick={() => setRescheduleModalOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleReschedule} 
+            <Button
+              onClick={handleReschedule}
               disabled={!selectedSlot || rescheduleLoading}
               className="gap-2"
             >

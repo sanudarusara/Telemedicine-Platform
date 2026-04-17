@@ -179,3 +179,28 @@ export async function getAvailableSlots(doctorId: string, date: string) {
   if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to fetch slots');
   return data?.data || [];
 }
+
+export const downloadReceipt = async (appointmentId: string) => {
+  if (!appointmentId) {
+    throw new Error("Appointment ID is missing");
+  }
+
+  const response = await fetch(`/api/appointments/${appointmentId}/receipt`, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to download receipt");
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `receipt-${appointmentId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};

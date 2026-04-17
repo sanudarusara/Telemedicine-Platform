@@ -99,6 +99,7 @@ services:
       DOCTOR_SERVICE_URL: ${DOCTOR_SERVICE_URL:-http://doctor-service:5006}
       TELEMEDICINE_SERVICE_URL: http://telemedicine-service:5000
       PAYMENT_SERVICE_URL: http://payment-service:5004
+      AI_SYMPTOM_SERVICE_URL: http://ai-symptom-service:5005
     depends_on:
       auth-service:
         condition: service_healthy
@@ -353,6 +354,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - healthcare-network
+
+  ai-symptom-service:
+    build:
+      context: ./ai-symptom-service
+      dockerfile: Dockerfile
+    container_name: healthcare-ai-symptom-service
+    restart: unless-stopped
+    expose:
+      - "5005"
+    ports:
+      - "5005:5005"
+    env_file:
+      - ai-symptom-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5005
     networks:
       - healthcare-network
 

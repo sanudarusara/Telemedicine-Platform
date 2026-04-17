@@ -22,9 +22,6 @@ const envMongo = process.env.MONGODB_URI || process.env.MONGO_URI;
 if (envMongo) {
   mongoURI = envMongo;
   console.log('📌 Using MongoDB URI from environment variable');
-} else if (isDocker) {
-  mongoURI = 'mongodb://mongodb:27017/appointment-service';
-  console.log('🐳 Running in Docker, using service name: mongodb');
 } else {
   mongoURI = 'mongodb://localhost:27017/appointment-service';
   console.log('💻 Running locally, using localhost');

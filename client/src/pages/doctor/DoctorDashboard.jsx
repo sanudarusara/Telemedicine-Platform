@@ -103,7 +103,13 @@ const Dashboard = () => {
           : []
       );
     } catch (err) {
-      setError(extractErrorMessage(err, "Failed to load dashboard"));
+      const errMsg = extractErrorMessage(err, "Failed to load dashboard");
+      // 403 from doctor-service means account is pending/rejected
+      if (err?.response?.status === 403 && err?.response?.data?.status) {
+        setError(`__status__${err.response.data.status}__${err.response.data.message}`);
+      } else {
+        setError(errMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -179,7 +185,30 @@ const Dashboard = () => {
   return (
     <DoctorDashLayout title="Dashboard">
       <div className="space-y-6">
-        {error && (
+        {error && error.startsWith("__status__pending__") && (
+          <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-8 h-8 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200">Account Pending Approval</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
+                Your registration is under review by our admin team. You'll be able to access your dashboard once approved.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {error && error.startsWith("__status__rejected__") && (
+          <Card className="border-rose-200 bg-rose-50 dark:bg-rose-900/20">
+            <CardContent className="p-6 text-center">
+              <h3 className="text-lg font-semibold text-rose-800">Registration Rejected</h3>
+              <p className="text-sm text-rose-700 mt-2">
+                Your registration was not approved. Please contact support for more information.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        {error && !error.startsWith("__status__") && (
           <Card className="border-destructive/30 bg-destructive/10">
             <CardContent className="p-4 text-sm text-destructive">
               {error}

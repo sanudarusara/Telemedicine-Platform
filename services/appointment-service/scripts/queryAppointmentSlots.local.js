@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const APPT_DB = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/appointment-service';
+const APPT_DB = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/appointment-management?retryWrites=true&w=majority';
 const doctorId = process.argv[2];
 const dateArg = process.argv[3];
 

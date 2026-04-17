@@ -11,7 +11,7 @@
 
 const mongoose = require('mongoose');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/audit-management';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/audit-management?retryWrites=true&w=majority';
 
 // ── Inline schema ─────────────────────────────────────────────────────────────
 const AuditLogSchema = new mongoose.Schema(

@@ -17,7 +17,7 @@
 
 const mongoose = require('mongoose');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/auth-management';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority';
 
 // ── Inline schema (mirrors services/auth-service/models/User.js) ─────────────
 const bcrypt = require('bcryptjs');

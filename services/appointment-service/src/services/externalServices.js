@@ -7,6 +7,8 @@ class ExternalServices {
         this.patientServiceURL = process.env.PATIENT_SERVICE_URL || 'http://localhost:5001';
         this.doctorServiceURL = process.env.DOCTOR_SERVICE_URL || 'http://localhost:3003';
         this.notificationServiceURL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3002';
+        // Direct connection to doctor-service for slot operations (bypasses auth-service)
+        this.doctorSlotsURL = process.env.DOCTOR_SLOTS_URL || 'http://doctor-service:5006/api/doctors';
     }
     async getPatientDetails(patientId) {
         // Try fetching the patient's profile via the API Gateway
@@ -164,56 +166,33 @@ class ExternalServices {
     async getAvailableSlots(doctorId, date) {
         try {
             if (!date) return [];
-            // Call through API Gateway
-            const url = `${this.doctorServiceURL}/${doctorId}/available-slots`;
+            // Use doctor-service direct slot API (stores in doctor-service MongoDB)
+            const url = `${this.doctorSlotsURL}/${doctorId}/available-slots`;
             const headers = {
                 'Content-Type': 'application/json',
-                'x-gateway': 'true',
                 'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
-                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
-                'x-user-role': 'SERVICE'
             };
             const res = await axios.get(url, { headers, params: { date }, timeout: 10000 });
             if (res && res.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
                 return res.data.data.filter(s => !s.isBooked).map(s => s.timeSlot);
             } else {
-                console.warn(`[EXTERNAL] Doctor service returned no slots for ${doctorId} on ${date}; falling back to local Slot model.`);
+                console.warn(`[EXTERNAL] doctor-service returned no slots for ${doctorId} on ${date}`);
+                return [];
             }
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to fetch slots from service: ${err?.message}. Falling back to local Slot model.`);
+            console.warn(`[EXTERNAL] Failed to fetch slots from doctor-service: ${err?.message}. Returning empty.`);
+            return [];
         }
-
-        // fallback to local Slot model
-        try {
-            if (!date) return [];
-            const startDate = new Date(date);
-            startDate.setHours(0,0,0,0);
-            const endDate = new Date(date);
-            endDate.setHours(23,59,59,999);
-
-            const slots = await Slot.find({ doctorId: doctorId, date: { $gte: startDate, $lte: endDate }, isBooked: false }).sort({ timeSlot: 1 });
-            return slots.map(s => s.timeSlot);
-        } catch (err) {
-            console.warn(`[EXTERNAL] Failed to read local Slot model: ${err.message}. Falling back to mock slots.`);
-        }
-
-        // final fallback
-        console.log(`[MOCK] Getting available slots for doctor ${doctorId} on ${date}`);
-        const allSlots = ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'];
-        return allSlots;
     }
 
     async checkAvailability(doctorId, date, timeSlot) {
         try {
             if (!date) return false;
-            // Call through API Gateway
-            const url = `${this.doctorServiceURL}/${doctorId}/available-slots`;
+            // Use doctor-service direct slot API
+            const url = `${this.doctorSlotsURL}/${doctorId}/available-slots`;
             const headers = {
                 'Content-Type': 'application/json',
-                'x-gateway': 'true',
                 'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
-                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
-                'x-user-role': 'SERVICE'
             };
             const res = await axios.get(url, { headers, params: { date }, timeout: 10000 });
             if (res && res.data && Array.isArray(res.data.data)) {
@@ -221,79 +200,41 @@ class ExternalServices {
                 return !!slot && !slot.isBooked;
             }
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to check availability from service: ${err?.message}. Falling back to local Slot model.`);
+            console.warn(`[EXTERNAL] Failed to check availability from doctor-service: ${err?.message}. Defaulting to available.`);
         }
-
-        try {
-            const startDate = new Date(date);
-            startDate.setHours(0,0,0,0);
-            const endDate = new Date(date);
-            endDate.setHours(23,59,59,999);
-
-            const slot = await Slot.findOne({ doctorId, date: { $gte: startDate, $lte: endDate }, timeSlot });
-            if (!slot) return false;
-            return !slot.isBooked;
-        } catch (err) {
-            console.warn(`[MOCK] Failed to check Slot model availability: ${err.message}. Defaulting to available.`);
-            return true;
-        }
+        return true;
     }
 
     async reserveDoctorSlot(doctorId, date, timeSlot) {
         try {
-            // Call through API Gateway
-            const url = `${this.doctorServiceURL}/${doctorId}/slots/reserve`;
+            // Use doctor-service direct slot API
+            const url = `${this.doctorSlotsURL}/${doctorId}/slots/reserve`;
             const headers = {
                 'Content-Type': 'application/json',
-                'x-gateway': 'true',
                 'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
-                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
-                'x-user-role': 'SERVICE'
             };
             const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 10000 });
             if (res && res.data && res.data.success) return res.data.data;
             return null;
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to reserve slot on service: ${err?.message}. Falling back to local Slot model reservation.`);
-        }
-
-        // fallback to local Slot model reservation
-        try {
-            const startDate = new Date(date);
-            startDate.setHours(0,0,0,0);
-            const slot = await Slot.findOneAndUpdate({ doctorId, date: startDate, timeSlot, isBooked: false }, { $set: { isBooked: true } }, { new: true });
-            return slot;
-        } catch (err) {
-            console.warn(`[EXTERNAL] Local slot reservation failed: ${err.message}`);
+            console.warn(`[EXTERNAL] Failed to reserve slot on doctor-service: ${err?.message}`);
             return null;
         }
     }
 
     async releaseDoctorSlot(doctorId, date, timeSlot) {
         try {
-            // Call through API Gateway
-            const url = `${this.doctorServiceURL}/${doctorId}/slots/release`;
+            // Use doctor-service direct slot API
+            const url = `${this.doctorSlotsURL}/${doctorId}/slots/release`;
             const headers = {
                 'Content-Type': 'application/json',
-                'x-gateway': 'true',
                 'x-api-key': process.env.INTERNAL_API_KEY || 'gateway-secret-key-change-in-production',
-                'x-user-id': process.env.SERVICE_USER_ID || 'appointment-service',
-                'x-user-role': 'SERVICE'
             };
             const res = await axios.post(url, { date, timeSlot }, { headers, timeout: 10000 });
             if (res && res.data && res.data.success) return res.data.data;
             return null;
         } catch (err) {
-            console.warn(`[EXTERNAL] Failed to release slot on service: ${err?.message}. Falling back to local Slot model release.`);
-        }
-
-        try {
-            const startDate = new Date(date);
-            startDate.setHours(0,0,0,0);
-            const slot = await Slot.findOneAndUpdate({ doctorId, date: startDate, timeSlot }, { $set: { isBooked: false } }, { new: true });
-            return slot;
-        } catch (err) {
-            console.warn(`[EXTERNAL] Local slot release failed: ${err.message}`);
+            console.warn(`[EXTERNAL] Failed to release slot on doctor-service: ${err?.message}`);
             return null;
         }
     }

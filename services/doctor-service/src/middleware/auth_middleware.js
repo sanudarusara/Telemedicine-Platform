@@ -33,6 +33,20 @@ const protect = async (req, res, next) => {
       return res.status(404).json({ message: "Doctor profile not found" });
     }
 
+    if (doctor.status === "pending") {
+      return res.status(403).json({
+        message: "Your account is pending admin approval. Please wait for verification.",
+        status: "pending",
+      });
+    }
+
+    if (doctor.status === "rejected") {
+      return res.status(403).json({
+        message: "Your account registration has been rejected. Please contact support.",
+        status: "rejected",
+      });
+    }
+
     req.doctor = doctor;
     // Expose the auth-service userId (from gateway header) so controllers
     // can query appointments/prescriptions that were created with the auth userId

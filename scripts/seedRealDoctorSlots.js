@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const AUTH_DB = process.env.AUTH_MONGO_URI || 'mongodb://localhost:27017/auth_management';
-const APPT_DB = process.env.APPOINTMENT_MONGO_URI || 'mongodb://localhost:27017/appointment-service';
+const AUTH_DB = process.env.AUTH_MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority';
+const APPT_DB = process.env.APPOINTMENT_MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/appointment-management?retryWrites=true&w=majority';
 const DOCTOR_EMAIL = process.env.DOCTOR_EMAIL || 'hemantha.dias@example.com';
 
 async function run() {

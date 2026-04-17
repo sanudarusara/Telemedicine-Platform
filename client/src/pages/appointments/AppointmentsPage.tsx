@@ -1065,13 +1065,13 @@ export default function AppointmentsPage() {
             <Button
               variant="outline"
               onClick={() => setPaymentModalOpen(false)}
-              disabled={paymentLoading}
+              disabled={!!paymentLoading}
             >
               Cancel
             </Button>
             <Button
               onClick={proceedPayment}
-              disabled={paymentLoading}
+              disabled={!!paymentLoading}
               className="gap-2 bg-green-600 hover:bg-green-700"
             >
               {paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}

@@ -181,8 +181,54 @@ const endVideoSession = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/telemedicine/join-room
+ * Patient endpoint — looks up an existing video session for an appointment
+ * and returns the joinUrl so the patient can enter the call.
+ */
+const joinRoom = async (req, res) => {
+  try {
+    const { appointmentId } = req.body;
+
+    if (!appointmentId) {
+      return res.status(400).json({ message: "appointmentId is required" });
+    }
+
+    const session = await VideoSession.findOne({ appointmentId });
+
+    if (!session) {
+      return res.status(404).json({
+        message: "Video session not found. The doctor may not have started the call yet.",
+      });
+    }
+
+    if (String(session.patientId) !== String(req.patient._id)) {
+      return res.status(403).json({ message: "You are not allowed to join this session" });
+    }
+
+    if (session.status === "ended") {
+      return res.status(400).json({ message: "This video session has already ended" });
+    }
+
+    return res.status(200).json({
+      message: "Joined video room successfully",
+      session: {
+        id: session._id,
+        appointmentId: session.appointmentId,
+        roomName: session.roomName,
+        joinUrl: session.joinUrl,
+        status: session.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error joining video room:", error);
+    return res.status(500).json({ message: "Error joining video room" });
+  }
+};
+
 module.exports = {
   createVideoRoom,
   getVideoSessionByAppointment,
   endVideoSession,
+  joinRoom,
 };

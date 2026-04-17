@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const Slot = require('../models/Slot');
 const User = require('../models/User');
 
-const mongoURI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/auth-service';
+const mongoURI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority';
 
 const seed = async () => {
   await mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });

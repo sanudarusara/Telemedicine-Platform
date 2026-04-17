@@ -12,7 +12,7 @@ const app = express();
 
 // Environment detection
 const isDocker = process.env.DOCKER_ENV === 'true' || process.env.MONGODB_URI !== undefined;
-const mongoURI = process.env.MONGODB_URI || (isDocker ? 'mongodb://mongodb:27017/notification-service' : 'mongodb://localhost:27017/notification-service');
+const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/notification-service';
 
 // Database connection
 mongoose.connect(mongoURI)

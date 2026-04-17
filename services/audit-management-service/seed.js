@@ -175,7 +175,7 @@ const generateLogs = (count) => {
 
 const seed = async () => {
   try {
-    const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/audit_db';
+    const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/audit-management?retryWrites=true&w=majority';
     await mongoose.connect(mongoUri);
     console.log('[Seed] Connected to MongoDB');
 

@@ -15,29 +15,11 @@ version: "3.9"
 #   doctor-service        → 5006
 #   telemedicine-service  → 5007 (host) → 5000 (container)
 #   client                → 8082
-#   mongodb               → 27017
 #   kafka                 → 9092
 
 services:
 
   # ─── Infrastructure ────────────────────────────────────────────────────────
-
-  mongodb:
-    image: mongo:7.0
-    container_name: healthcare-mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - healthcare-network
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -93,14 +75,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongodb:27017/auth-management
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
       JWT_EXPIRES_IN: 7d
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
@@ -127,13 +107,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5001
-      MONGO_URI: mongodb://mongodb:27017/patient-management
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/patient-management?retryWrites=true&w=majority
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
@@ -156,15 +134,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5002
-      MONGO_URI: mongodb://mongodb:27017/audit-management
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/audit-management?retryWrites=true&w=majority
       KAFKA_BROKER: kafka:29092
       KAFKA_CLIENT_ID: audit-management-service
       KAFKA_GROUP_ID: audit-service-group
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
       PATIENT_SERVICE_URL: http://patient-service:5001
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
@@ -187,7 +163,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3003
-      MONGODB_URI: mongodb://mongodb:27017/notification-service
+      MONGODB_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/notification-service?retryWrites=true&w=majority
       DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
@@ -201,8 +177,6 @@ services:
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
@@ -225,7 +199,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      MONGODB_URI: mongodb://mongodb:27017/appointment-management
+      MONGODB_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/appointment-management?retryWrites=true&w=majority
       DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
@@ -233,11 +207,12 @@ services:
       SERVICE_USER_NAME: appointment service
       PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
       DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
+      DOCTOR_SLOTS_URL: http://doctor-service:5006/api/doctors
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
     depends_on:
-      mongodb:
-        condition: service_healthy
       kafka:
+        condition: service_healthy
+      doctor-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
@@ -260,12 +235,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5004
-      MONGO_URI: mongodb://mongodb:27017/payment-service
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/payment-service?retryWrites=true&w=majority
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:8082}
-    depends_on:
-      mongodb:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5004/health"]
       interval: 30s
@@ -285,11 +257,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5005
-      MONGO_URI: mongodb://mongodb:27017/ai-symptom-service
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/ai-symptom-service?retryWrites=true&w=majority
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-    depends_on:
-      mongodb:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5005/"]
       interval: 30s
@@ -313,9 +282,7 @@ services:
       PORT: 5006
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
-    depends_on:
-      mongodb:
-        condition: service_healthy
+      AUTH_SERVICE_URL: http://auth-service:5000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5006/health"]
       interval: 30s
@@ -335,14 +302,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongodb:27017/telemedicine-service
+      MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/telemedicine-service?retryWrites=true&w=majority
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
       APPOINTMENT_SERVICE_URL: http://appointment-service:3001
       DOCTOR_SERVICE_URL: http://api-gateway:5400
       PATIENT_SERVICE_URL: http://patient-service:5001
     depends_on:
-      mongodb:
-        condition: service_healthy
       appointment-service:
         condition: service_healthy
     healthcheck:
@@ -423,7 +388,6 @@ services:
       - healthcare-network
 
 volumes:
-  mongodb_data:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:

@@ -138,3 +138,63 @@ export async function verifyDoctor(userId: string): Promise<AuthUser> {
   }
 }
 
+// ── Doctor admin (doctor-service) ─────────────────────────────────────────────
+
+export interface DoctorProfile {
+  _id: string;
+  name: string;
+  email: string;
+  specialization: string;
+  clinic: string;
+  phone: string;
+  fee: number;
+  status: "pending" | "approved" | "rejected";
+  isActive: boolean;
+  startTime: string;
+  endTime: string;
+  sessionTime: number;
+  workingDays: string[];
+  createdAt?: string;
+}
+
+export async function getDoctorProfiles(
+  status: "pending" | "approved" | "rejected" | "all" = "all"
+): Promise<DoctorProfile[]> {
+  try {
+    const { data } = await apiClient.get<{
+      success: boolean;
+      data: DoctorProfile[];
+    }>(`/api/doctors/admin?status=${status}`);
+    return data.data ?? [];
+  } catch (err) {
+    throwErr(err);
+  }
+}
+
+export async function approveDoctorProfile(
+  doctorId: string
+): Promise<{ data: DoctorProfile; slotsGenerated: number }> {
+  try {
+    const { data } = await apiClient.post<{
+      success: boolean;
+      data: DoctorProfile;
+      slotsGenerated: number;
+    }>(`/api/doctors/admin/${doctorId}/approve`);
+    return { data: data.data, slotsGenerated: data.slotsGenerated };
+  } catch (err) {
+    throwErr(err);
+  }
+}
+
+export async function rejectDoctorProfile(doctorId: string): Promise<DoctorProfile> {
+  try {
+    const { data } = await apiClient.post<{
+      success: boolean;
+      data: DoctorProfile;
+    }>(`/api/doctors/admin/${doctorId}/reject`);
+    return data.data;
+  } catch (err) {
+    throwErr(err);
+  }
+}
+

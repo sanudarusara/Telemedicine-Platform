@@ -8,7 +8,7 @@ if (!userId) {
   process.exit(1);
 }
 
-const mongoURI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://mongodb:27017/patient-management';
+const mongoURI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/patient-management?retryWrites=true&w=majority';
 
 const run = async () => {
   await mongoose.connect(mongoURI);

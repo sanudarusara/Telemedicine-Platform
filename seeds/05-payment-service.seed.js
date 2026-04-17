@@ -11,8 +11,8 @@
 
 const mongoose = require('mongoose');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/payment-service';
-const AUTH_DB   = process.env.AUTH_MONGO_URI || 'mongodb://mongodb:27017/auth-management';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/payment-service?retryWrites=true&w=majority';
+const AUTH_DB   = process.env.AUTH_MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority';
 
 // ── Inline schema ─────────────────────────────────────────────────────────────
 const PaymentSchema = new mongoose.Schema(

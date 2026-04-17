@@ -24,6 +24,7 @@ import DoctorAppointments from "./pages/doctor/DoctorAppointments.jsx";
 import DoctorPrescriptions from "./pages/doctor/DoctorPrescriptions.jsx";
 import DoctorProfile from "./pages/doctor/DoctorProfile.jsx";
 import DoctorVideoConsult from "./pages/doctor/DoctorVideoConsult.jsx";
+import DoctorRegister from "./pages/doctor/DoctorRegister.jsx";
 
 // Existing pages kept as they were
 import Appointments from "./pages/Appointments.jsx";
@@ -107,6 +108,9 @@ const App = () => (
           <Route path="/appointments" element={<AppointmentsPage />} />
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/payment/cancel" element={<PaymentCancel />} />
+
+          {/* Doctor registration (public) */}
+          <Route path="/doctor/register" element={<DoctorRegister />} />
 
           {/* Legacy login routes — redirect to unified /login */}
           <Route path="/doctor/login" element={<LoginPage />} />

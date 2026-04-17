@@ -193,6 +193,15 @@ const LoginPage = () => {
               Doctors and admins can also sign in with their credentials above.
             </p>
           )}
+
+          {mode === "login" && (
+            <p className="text-center text-sm text-muted-foreground">
+              Are you a healthcare provider?{" "}
+              <Link to="/doctor/register" className="text-primary hover:underline font-medium">
+                Register as a Doctor
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>

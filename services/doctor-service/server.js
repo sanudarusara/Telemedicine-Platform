@@ -11,7 +11,8 @@ const authRoutes = require("./src/routes/auth_routes");
 const doctorRoutes = require("./src/routes/doctor_routes");
 const appointmentRoutes = require("./src/routes/appointment_routes");
 const prescriptionRoutes = require("./src/routes/prescription_routes");
-
+const adminRoutes = require("./src/routes/admin_routes");
+const slotApiRoutes = require("./src/routes/slot_api_routes");
 const app = express();
 
 // Log MongoDB URI
@@ -45,6 +46,8 @@ app.get("/health", (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/doctors/admin", adminRoutes);
+app.use("/api/doctors", slotApiRoutes);   // service-to-service slot API (before protected routes)
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/doctors", appointmentRoutes);
 app.use("/api/doctors", prescriptionRoutes);

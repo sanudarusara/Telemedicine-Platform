@@ -12,8 +12,8 @@
 
 const mongoose = require('mongoose');
 
-const MONGO_URI  = process.env.MONGO_URI  || 'mongodb://mongodb:27017/patient-management';
-const AUTH_DB    = process.env.AUTH_MONGO_URI || 'mongodb://mongodb:27017/auth-management';
+const MONGO_URI  = process.env.MONGO_URI  || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/patient-management?retryWrites=true&w=majority';
+const AUTH_DB    = process.env.AUTH_MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/auth-management?retryWrites=true&w=majority';
 
 // ── Inline schemas ────────────────────────────────────────────────────────────
 const PrescriptionSchema = new mongoose.Schema({

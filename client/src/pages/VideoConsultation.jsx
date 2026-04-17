@@ -58,7 +58,12 @@ const VideoConsultation = () => {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_BASE_URL}/doctors/appointments`, {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const patientId = payload.id || payload._id;
+
+      if (!patientId) throw new Error("Patient ID not found in token.");
+
+      const response = await fetch(`${API_BASE_URL}/appointments/patient/${patientId}/upcoming`, {
         method: "GET",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
@@ -72,8 +77,12 @@ const VideoConsultation = () => {
         throw new Error(data?.message || "Failed to fetch appointments");
       }
 
-      const appointments = Array.isArray(data?.appointments)
+      const appointments = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.appointments)
         ? data.appointments
+        : Array.isArray(data)
+        ? data
         : [];
 
       setConsultations(appointments.filter((a) => a.status === "confirmed"));
@@ -94,7 +103,7 @@ const VideoConsultation = () => {
       setJoiningId(appointment._id);
       setError("");
 
-      const response = await fetch(`${API_BASE_URL}/telemedicine/create-room`, {
+      const response = await fetch(`${API_BASE_URL}/telemedicine/join-room`, {
         method: "POST",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
@@ -108,16 +117,14 @@ const VideoConsultation = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to create telemedicine room");
+        throw new Error(data?.message || "Failed to join telemedicine room");
       }
 
-      const dateTime = formatDateTime(
-        appointment.scheduledTime || appointment.createdAt || appointment.updatedAt
-      );
+      const dateTime = formatDateTime(appointment.date || appointment.scheduledTime);
 
       setActiveCall({
         appointmentId: appointment._id,
-        patient: getPatientDisplayName(appointment),
+        doctor: appointment.doctorName || appointment.doctor?.name || "Your Doctor",
         date: dateTime.date,
         time: dateTime.time,
         status: appointment.status,
@@ -126,7 +133,7 @@ const VideoConsultation = () => {
       });
     } catch (err) {
       console.error(err);
-      setError(err.message || "Failed to start video consultation");
+      setError(err.message || "Failed to join video consultation");
     } finally {
       setJoiningId("");
     }
@@ -181,22 +188,13 @@ const VideoConsultation = () => {
                             <Video className="w-8 h-8 text-primary" />
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Video call with {activeCall.patient}
+                            Video call with {activeCall.doctor}
                           </p>
                         </div>
                       </div>
                     )}
                   </div>
-
-                  <div className="flex justify-center gap-3 mt-4 flex-wrap">
-                    {activeCall.joinUrl && (
-                      <a href={activeCall.joinUrl} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="lg" className="gap-2">
-                          Open in Jitsi Meet <ExternalLink className="w-4 h-4" />
-                        </Button>
-                      </a>
-                    )}
-
+                  <div className="mt-4 flex justify-end">
                     <Button
                       variant="destructive"
                       size="lg"
@@ -214,7 +212,7 @@ const VideoConsultation = () => {
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-foreground">
                       <User className="w-4 h-4 text-muted-foreground" />
-                      {activeCall.patient}
+                      {activeCall.doctor}
                     </div>
 
                     <div className="flex items-center gap-2 text-foreground">
@@ -268,9 +266,8 @@ const VideoConsultation = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {consultations.map((c) => {
-                const dateTime = formatDateTime(
-                  c.scheduledTime || c.createdAt || c.updatedAt
-                );
+                const dateTime = formatDateTime(c.date || c.scheduledTime);
+                const doctorName = c.doctorName || c.doctor?.name || "Your Doctor";
 
                 return (
                   <Card
@@ -280,19 +277,13 @@ const VideoConsultation = () => {
                     <CardContent className="p-5 space-y-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
-                          {getPatientDisplayName(c)
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)}
+                          {doctorName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                         </div>
 
                         <div>
-                          <p className="font-medium text-foreground">
-                            {getPatientDisplayName(c)}
-                          </p>
+                          <p className="font-medium text-foreground">{doctorName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {c.appointmentNo || "Appointment"}
+                            {c.appointmentNo || c.specialization || "Appointment"}
                           </p>
                         </div>
                       </div>

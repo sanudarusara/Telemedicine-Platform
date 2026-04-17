@@ -13,7 +13,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/doctor-service';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/doctor-service?retryWrites=true&w=majority';
 
 // ── Inline schema (mirrors services/doctor-service/src/models/doctor_model.js) ─
 const DoctorSchema = new mongoose.Schema(

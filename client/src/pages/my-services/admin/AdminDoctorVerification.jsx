@@ -1,14 +1,21 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Stethoscope, ShieldCheck, ShieldX, Search, Loader2,
-  AlertCircle, RefreshCw, CheckCircle2, Clock, UserCheck,
+  AlertCircle, RefreshCw, CheckCircle2, Clock, Building,
+  Phone, DollarSign, Calendar,
 } from "lucide-react";
-import { getAllUsers, verifyDoctor, updateUserStatus } from "@/services/authAdminService";
+import {
+  getDoctorProfiles,
+  approveDoctorProfile,
+  rejectDoctorProfile,
+} from "@/services/authAdminService";
+
+const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
 
 const AdminDoctorVerification = () => {
   const [doctors, setDoctors] = useState([]);
@@ -16,15 +23,15 @@ const AdminDoctorVerification = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("ALL"); // ALL | PENDING | VERIFIED
+  const [filter, setFilter] = useState("pending");
   const [actionLoading, setActionLoading] = useState(null);
 
   const fetchDoctors = async () => {
     setLoading(true);
     setError("");
     try {
-      const allUsers = await getAllUsers();
-      setDoctors(allUsers.filter((u) => u.role === "DOCTOR"));
+      const all = await getDoctorProfiles("all");
+      setDoctors(all);
     } catch (e) {
       setError(e?.message || "Failed to load doctors");
     } finally {
@@ -34,31 +41,35 @@ const AdminDoctorVerification = () => {
 
   useEffect(() => { fetchDoctors(); }, []);
 
-  const notify = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(""), 3000); };
+  const notify = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(""), 4000); };
 
-  const handleVerify = async (doctor) => {
-    setActionLoading(`verify-${doctor._id}`);
+  const handleApprove = async (doctor) => {
+    setActionLoading(`approve-${doctor._id}`);
     setError("");
     try {
-      const updated = await verifyDoctor(doctor._id);
-      setDoctors((prev) => prev.map((d) => (d._id === doctor._id ? { ...d, ...updated } : d)));
-      notify(`Dr. ${doctor.name} has been verified`);
+      const result = await approveDoctorProfile(doctor._id);
+      setDoctors((prev) =>
+        prev.map((d) => (d._id === doctor._id ? { ...d, status: "approved", isActive: true } : d))
+      );
+      notify(`Dr. ${doctor.name} approved. ${result.slotsGenerated} slots generated for the next 30 days.`);
     } catch (e) {
-      setError(e?.message || "Failed to verify doctor");
+      setError(e?.message || "Failed to approve doctor");
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleToggleStatus = async (doctor) => {
-    setActionLoading(`status-${doctor._id}`);
+  const handleReject = async (doctor) => {
+    setActionLoading(`reject-${doctor._id}`);
     setError("");
     try {
-      const updated = await updateUserStatus(doctor._id, !doctor.isActive);
-      setDoctors((prev) => prev.map((d) => (d._id === doctor._id ? { ...d, ...updated } : d)));
-      notify(`Dr. ${doctor.name} ${updated.isActive ? "activated" : "deactivated"}`);
+      await rejectDoctorProfile(doctor._id);
+      setDoctors((prev) =>
+        prev.map((d) => (d._id === doctor._id ? { ...d, status: "rejected", isActive: false } : d))
+      );
+      notify(`Dr. ${doctor.name}'s registration has been rejected.`);
     } catch (e) {
-      setError(e?.message || "Failed to update status");
+      setError(e?.message || "Failed to reject doctor");
     } finally {
       setActionLoading(null);
     }
@@ -68,16 +79,23 @@ const AdminDoctorVerification = () => {
     const matchSearch =
       d.name?.toLowerCase().includes(search.toLowerCase()) ||
       d.email?.toLowerCase().includes(search.toLowerCase()) ||
-      d.specialty?.toLowerCase().includes(search.toLowerCase());
-    const matchFilter =
-      filter === "ALL" ||
-      (filter === "PENDING" && !d.isVerified) ||
-      (filter === "VERIFIED" && d.isVerified);
+      d.specialization?.toLowerCase().includes(search.toLowerCase()) ||
+      d.clinic?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "all" || d.status === filter;
     return matchSearch && matchFilter;
   });
 
-  const pendingCount = doctors.filter((d) => !d.isVerified).length;
-  const verifiedCount = doctors.filter((d) => d.isVerified).length;
+  const pendingCount = doctors.filter((d) => d.status === "pending").length;
+  const approvedCount = doctors.filter((d) => d.status === "approved").length;
+  const rejectedCount = doctors.filter((d) => d.status === "rejected").length;
+
+  const statusBadge = (status) => {
+    if (status === "approved")
+      return <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 text-xs" variant="outline"><ShieldCheck className="w-3 h-3 mr-1" />Approved</Badge>;
+    if (status === "rejected")
+      return <Badge className="border-rose-200 bg-rose-50 text-rose-700 text-xs" variant="outline"><ShieldX className="w-3 h-3 mr-1" />Rejected</Badge>;
+    return <Badge className="border-amber-200 bg-amber-50 text-amber-700 text-xs" variant="outline"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+  };
 
   return (
     <DashboardLayout title="Doctor Verification">
@@ -87,7 +105,7 @@ const AdminDoctorVerification = () => {
           <div>
             <h2 className="text-2xl font-bold text-foreground">Doctor Verification</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Review and verify doctor registrations before they can see patients
+              Review and approve doctor registrations. Approved doctors get slots auto-generated.
             </p>
           </div>
           <Button variant="outline" size="sm" className="rounded-2xl" onClick={fetchDoctors} disabled={loading}>
@@ -97,11 +115,12 @@ const AdminDoctorVerification = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Doctors", value: doctors.length, icon: Stethoscope, color: "text-primary" },
-            { label: "Pending Verification", value: pendingCount, icon: Clock, color: "text-amber-500" },
-            { label: "Verified", value: verifiedCount, icon: ShieldCheck, color: "text-emerald-500" },
+            { label: "Total", value: doctors.length, icon: Stethoscope, color: "text-primary" },
+            { label: "Pending", value: pendingCount, icon: Clock, color: "text-amber-500" },
+            { label: "Approved", value: approvedCount, icon: ShieldCheck, color: "text-emerald-500" },
+            { label: "Rejected", value: rejectedCount, icon: ShieldX, color: "text-rose-500" },
           ].map((s) => (
             <Card key={s.label} className="rounded-[24px] border-border/60">
               <CardContent className="p-5 flex items-center justify-between">
@@ -136,25 +155,30 @@ const AdminDoctorVerification = () => {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email or specialty..."
+              placeholder="Search by name, email, specialty, or clinic..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 rounded-2xl"
             />
           </div>
-          <div className="flex gap-2">
-            {["ALL", "PENDING", "VERIFIED"].map((f) => (
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { key: "pending", label: "Pending", count: pendingCount },
+              { key: "approved", label: "Approved" },
+              { key: "rejected", label: "Rejected" },
+              { key: "all", label: "All" },
+            ].map((f) => (
               <Button
-                key={f}
-                variant={filter === f ? "default" : "outline"}
+                key={f.key}
+                variant={filter === f.key ? "default" : "outline"}
                 size="sm"
                 className="rounded-2xl"
-                onClick={() => setFilter(f)}
+                onClick={() => setFilter(f.key)}
               >
-                {f === "ALL" ? "All" : f === "PENDING" ? "Pending" : "Verified"}
-                {f === "PENDING" && pendingCount > 0 && (
+                {f.label}
+                {f.count > 0 && (
                   <span className="ml-1.5 bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full">
-                    {pendingCount}
+                    {f.count}
                   </span>
                 )}
               </Button>
@@ -170,82 +194,113 @@ const AdminDoctorVerification = () => {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">No doctors found</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filtered.map((doctor) => (
               <Card key={doctor._id} className="rounded-[24px] border-border/60 hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                         <Stethoscope className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-semibold text-foreground text-sm">{doctor.name}</p>
+                        <p className="font-semibold text-foreground">{doctor.name}</p>
                         <p className="text-xs text-muted-foreground">{doctor.email}</p>
-                        {doctor.specialty && (
-                          <p className="text-xs text-primary font-medium mt-0.5">{doctor.specialty}</p>
-                        )}
+                        <p className="text-xs text-primary font-medium mt-0.5">{doctor.specialization}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className={
-                          doctor.isVerified
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 text-xs"
-                            : "border-amber-200 bg-amber-50 text-amber-700 text-xs"
-                        }
-                      >
-                        {doctor.isVerified ? (
-                          <><ShieldCheck className="w-3 h-3 mr-1" />Verified</>
-                        ) : (
-                          <><Clock className="w-3 h-3 mr-1" />Pending</>
-                        )}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          doctor.isActive
-                            ? "border-blue-200 bg-blue-50 text-blue-700 text-xs"
-                            : "border-rose-200 bg-rose-50 text-rose-700 text-xs"
-                        }
-                      >
-                        {doctor.isActive ? "Active" : "Inactive"}
-                      </Badge>
+                    {statusBadge(doctor.status)}
+                  </div>
+
+                  {/* Details grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{doctor.clinic}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 shrink-0" />
+                      <span>{doctor.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 shrink-0" />
+                      <span>Rs. {Number(doctor.fee).toLocaleString()} / session</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{doctor.startTime} – {doctor.endTime} ({doctor.sessionTime} min)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 col-span-2">
+                      <Calendar className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        {(doctor.workingDays || []).map((d) => DAY_LABELS[d] || d).join(", ")}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-4">
-                    {!doctor.isVerified && (
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    {doctor.status === "pending" && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="rounded-xl flex-1 bg-emerald-600 hover:bg-emerald-700"
+                          disabled={actionLoading === `approve-${doctor._id}`}
+                          onClick={() => handleApprove(doctor)}
+                        >
+                          {actionLoading === `approve-${doctor._id}` ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" />Approve & Generate Slots</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
+                          disabled={actionLoading === `reject-${doctor._id}`}
+                          onClick={() => handleReject(doctor)}
+                        >
+                          {actionLoading === `reject-${doctor._id}` ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <><ShieldX className="w-3.5 h-3.5 mr-1.5" />Reject</>
+                          )}
+                        </Button>
+                      </>
+                    )}
+                    {doctor.status === "approved" && (
                       <Button
                         size="sm"
-                        className="rounded-xl flex-1"
-                        disabled={actionLoading === `verify-${doctor._id}`}
-                        onClick={() => handleVerify(doctor)}
+                        variant="outline"
+                        className="rounded-xl flex-1 border-rose-200 text-rose-600 hover:bg-rose-50"
+                        disabled={actionLoading === `reject-${doctor._id}`}
+                        onClick={() => handleReject(doctor)}
                       >
-                        {actionLoading === `verify-${doctor._id}` ? (
+                        {actionLoading === `reject-${doctor._id}` ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" />Verify</>
+                          <><ShieldX className="w-3.5 h-3.5 mr-1.5" />Revoke Approval</>
                         )}
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl flex-1"
-                      disabled={actionLoading === `status-${doctor._id}`}
-                      onClick={() => handleToggleStatus(doctor)}
-                    >
-                      {actionLoading === `status-${doctor._id}` ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : doctor.isActive ? (
-                        <><UserCheck className="w-3.5 h-3.5 mr-1.5" />Deactivate</>
-                      ) : (
-                        <><UserCheck className="w-3.5 h-3.5 mr-1.5" />Activate</>
-                      )}
-                    </Button>
+                    {doctor.status === "rejected" && (
+                      <Button
+                        size="sm"
+                        className="rounded-xl flex-1 bg-emerald-600 hover:bg-emerald-700"
+                        disabled={actionLoading === `approve-${doctor._id}`}
+                        onClick={() => handleApprove(doctor)}
+                      >
+                        {actionLoading === `approve-${doctor._id}` ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" />Re-approve</>
+                        )}
+                      </Button>
+                    )}
                   </div>
+
                   {doctor.createdAt && (
                     <p className="text-xs text-muted-foreground mt-3">
                       Registered: {new Date(doctor.createdAt).toLocaleDateString()}

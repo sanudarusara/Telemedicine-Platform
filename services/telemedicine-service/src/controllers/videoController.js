@@ -1,33 +1,31 @@
-const jwt = require("jsonwebtoken");
 const VideoSession = require("../model/videoSession.model");
 
-const buildDoctorServiceUrl = (appointmentId) => {
-  const baseUrl = (process.env.DOCTOR_SERVICE_URL || "").replace(/\/+$/, "");
-  return `${baseUrl}/api/doctors/appointments/${appointmentId}`;
-};
-
-const fetchAppointmentFromDoctorService = async (appointmentId, authHeader) => {
-  const url = buildDoctorServiceUrl(appointmentId);
+const fetchAppointmentById = async (appointmentId, req) => {
+  const gatewayUrl = (process.env.DOCTOR_SERVICE_URL || "http://api-gateway:5400").replace(/\/+$/, "");
+  const url = `${gatewayUrl}/api/appointments/${appointmentId}`;
 
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      Authorization: authHeader,
+      Authorization: req.headers.authorization || "",
       "Content-Type": "application/json",
+      "x-api-key": process.env.INTERNAL_API_KEY || "",
+      "x-gateway": "true",
+      "x-user-id": req.doctor._id,
+      "x-user-role": req.doctor.role,
+      "x-user-email": req.doctor.email || "",
     },
   });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const message =
-      data?.message || "Unable to validate appointment from doctor service";
-    const error = new Error(message);
+    const error = new Error(data?.message || "Unable to validate appointment");
     error.statusCode = response.status;
     throw error;
   }
 
-  return data?.appointment || data;
+  return data?.data || data?.appointment || data;
 };
 
 const createVideoRoom = async (req, res) => {
@@ -38,18 +36,7 @@ const createVideoRoom = async (req, res) => {
       return res.status(400).json({ message: "appointmentId is required" });
     }
 
-    if (!process.env.DOCTOR_SERVICE_URL) {
-      return res
-        .status(500)
-        .json({ message: "DOCTOR_SERVICE_URL is not configured" });
-    }
-
-    const authHeader = req.headers.authorization || "";
-
-    const appointment = await fetchAppointmentFromDoctorService(
-      appointmentId,
-      authHeader
-    );
+    const appointment = await fetchAppointmentById(appointmentId, req);
 
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });

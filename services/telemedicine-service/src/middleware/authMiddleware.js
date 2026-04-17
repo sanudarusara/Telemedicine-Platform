@@ -1,40 +1,36 @@
-const jwt = require("jsonwebtoken");
-
+/**
+ * Auth middleware that trusts the API Gateway.
+ * The gateway verifies the JWT and injects x-user-id / x-user-role / x-user-email.
+ * We validate the x-api-key and x-gateway headers to confirm the request came
+ * through the gateway, then attach req.doctor from the injected headers.
+ */
 const protectDoctor = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization || "";
-    const token = authHeader.startsWith("Bearer ")
-      ? authHeader.split(" ")[1]
-      : null;
+  const gatewayKey = req.headers["x-api-key"];
+  const isFromGateway = req.headers["x-gateway"] === "true";
+  const expectedKey = process.env.INTERNAL_API_KEY;
 
-    if (!token) {
-      return res.status(401).json({ message: "Not authorized, token missing" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    if (!decoded || !decoded.id) {
-      return res.status(401).json({ message: "Invalid token" });
-    }
-
-    req.doctor = {
-      _id: decoded.id,
-      role: decoded.role,
-      accountType: decoded.accountType,
-    };
-
-    if (
-      String(req.doctor.role).toLowerCase() !== "doctor" &&
-      String(req.doctor.accountType).toLowerCase() !== "doctor"
-    ) {
-      return res.status(403).json({ message: "Doctor access only" });
-    }
-
-    next();
-  } catch (error) {
-    console.error("Telemedicine auth error:", error);
-    return res.status(401).json({ message: "Invalid or expired token" });
+  if (!isFromGateway || (expectedKey && gatewayKey !== expectedKey)) {
+    return res.status(401).json({ message: "Unauthorized: missing gateway key" });
   }
+
+  const userId = req.headers["x-user-id"];
+  const userRole = req.headers["x-user-role"];
+
+  if (!userId || !userRole) {
+    return res.status(401).json({ message: "Not authorized, token missing" });
+  }
+
+  if (String(userRole).toUpperCase() !== "DOCTOR") {
+    return res.status(403).json({ message: "Doctor access only" });
+  }
+
+  req.doctor = {
+    _id: userId,
+    role: userRole,
+    email: req.headers["x-user-email"] || "",
+  };
+
+  next();
 };
 
 module.exports = { protectDoctor };

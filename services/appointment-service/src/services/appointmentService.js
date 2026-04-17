@@ -434,7 +434,6 @@ class AppointmentService {
   async getPendingAppointmentsForDoctor(doctorId) {
     return await Appointment.find({
       doctorId: doctorId,
-      status: 'pending'
     }).sort({ date: 1 });
   }
 }

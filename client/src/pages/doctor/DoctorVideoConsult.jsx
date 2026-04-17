@@ -58,7 +58,12 @@ const VideoConsultation = () => {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`${API_BASE_URL}/doctors/appointments`, {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const doctorId = payload.id || payload._id || payload.doctorId;
+
+      if (!doctorId) throw new Error("Doctor ID not found in token.");
+
+      const response = await fetch(`${API_BASE_URL}/appointments/doctor/${doctorId}/pending`, {
         method: "GET",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
@@ -72,8 +77,12 @@ const VideoConsultation = () => {
         throw new Error(data?.message || "Failed to fetch appointments");
       }
 
-      const appointments = Array.isArray(data?.appointments)
+      const appointments = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.appointments)
         ? data.appointments
+        : Array.isArray(data)
+        ? data
         : [];
 
       setConsultations(appointments.filter((a) => a.status === "confirmed"));

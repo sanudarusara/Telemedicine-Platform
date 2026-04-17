@@ -10,6 +10,13 @@ class ExternalServices {
         // Direct connection to doctor-service for slot operations (bypasses auth-service)
         this.doctorSlotsURL = process.env.DOCTOR_SLOTS_URL || 'http://doctor-service:5006/api/doctors';
     }
+
+    // Normalise any date value (ISO string, Date object, or already YYYY-MM-DD) to "YYYY-MM-DD"
+    _toDateString(date) {
+        if (!date) return date;
+        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+        return new Date(date).toISOString().slice(0, 10);
+    }
     async getPatientDetails(patientId) {
         // Try fetching the patient's profile via the API Gateway
         // The patient-management-service expects gateway-injected headers (x-gateway, x-api-key, x-user-id, x-user-role)
@@ -166,6 +173,7 @@ class ExternalServices {
     async getAvailableSlots(doctorId, date) {
         try {
             if (!date) return [];
+            date = this._toDateString(date);
             // Use doctor-service direct slot API (stores in doctor-service MongoDB)
             const url = `${this.doctorSlotsURL}/${doctorId}/available-slots`;
             const headers = {
@@ -188,6 +196,7 @@ class ExternalServices {
     async checkAvailability(doctorId, date, timeSlot) {
         try {
             if (!date) return false;
+            date = this._toDateString(date);
             // Use doctor-service direct slot API
             const url = `${this.doctorSlotsURL}/${doctorId}/available-slots`;
             const headers = {
@@ -207,6 +216,7 @@ class ExternalServices {
 
     async reserveDoctorSlot(doctorId, date, timeSlot) {
         try {
+            date = this._toDateString(date);
             // Use doctor-service direct slot API
             const url = `${this.doctorSlotsURL}/${doctorId}/slots/reserve`;
             const headers = {
@@ -224,6 +234,7 @@ class ExternalServices {
 
     async releaseDoctorSlot(doctorId, date, timeSlot) {
         try {
+            date = this._toDateString(date);
             // Use doctor-service direct slot API
             const url = `${this.doctorSlotsURL}/${doctorId}/slots/release`;
             const headers = {

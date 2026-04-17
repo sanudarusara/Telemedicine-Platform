@@ -232,6 +232,20 @@ class AuthController {
         metadata: { targetUserId: userId, newRole: role, adminId: req.user.id },
       })).catch(() => {});
 
+      // Publish STAFF_SELECTED when a user is promoted to ADMIN
+      if (role === 'ADMIN') {
+        publishEvent(TOPICS.ADMIN_EVENTS, createEvent({
+          eventType: EVENTS.STAFF_SELECTED,
+          userId: updated.id.toString(),
+          userRole: updated.role,
+          serviceName: 'auth-service',
+          description: `User ${updated.email} selected as staff (ADMIN)`,
+          status: 'SUCCESS',
+          ipAddress: req.ip || '0.0.0.0',
+          metadata: { targetUserId: userId, adminId: req.user.id },
+        })).catch(() => {});
+      }
+
       return res.status(200).json({ success: true, message: 'User role updated successfully', data: updated });
     } catch (error) {
       return res.status(400).json({ success: false, message: error.message });
@@ -260,6 +274,32 @@ class AuthController {
       })).catch(() => {});
 
       return res.status(200).json({ success: true, message: 'Doctor verified successfully', data: updated });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * DELETE /api/auth/users/:userId  (ADMIN only)
+   * Permanently delete a user account.
+   */
+  async deleteUser(req, res) {
+    try {
+      const { userId } = req.params;
+      const deleted = await authService.deleteUser(userId);
+
+      publishEvent(TOPICS.ADMIN_EVENTS, createEvent({
+        eventType: EVENTS.USER_DELETED,
+        userId: deleted.id.toString(),
+        userRole: deleted.role,
+        serviceName: 'auth-service',
+        description: `Admin deleted user: ${deleted.email}`,
+        status: 'SUCCESS',
+        ipAddress: req.ip || '0.0.0.0',
+        metadata: { targetUserId: userId, adminId: req.user.id },
+      })).catch(() => {});
+
+      return res.status(200).json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
       return res.status(400).json({ success: false, message: error.message });
     }

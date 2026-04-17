@@ -3,8 +3,10 @@
 
 const { Kafka, logLevel } = require('kafkajs');
 const patientRepository = require('../repositories/patientRepository');
+const { publishEvent } = require('../kafka');
 const TOPICS = require('../../shared/kafka/topics');
 const EVENTS = require('../../shared/kafka/events');
+const { createEvent } = require('../../shared/kafka/eventFactory');
 
 const kafka = new Kafka({
   clientId: 'patient-management-service-consumer',
@@ -93,6 +95,19 @@ async function handleUserRegistered(payload) {
     const patient = await patientRepository.create({ userId });
 
     console.log(`[kafka-consumer] ✓ Created Patient profile for ${name} (${email}):`, patient._id);
+
+    // Publish PATIENT_REGISTERED so downstream services (audit, notification) are notified
+    publishEvent(TOPICS.PATIENT_REGISTERED, createEvent({
+      eventType: EVENTS.PATIENT_REGISTERED,
+      userId,
+      userRole: 'PATIENT',
+      serviceName: 'patient-management-service',
+      description: `Patient profile created for ${email}`,
+      status: 'SUCCESS',
+      metadata: { patientId: patient._id.toString(), email, name },
+    })).catch((err) => {
+      console.error('[kafka-consumer] Failed to publish PATIENT_REGISTERED event:', err.message);
+    });
   } catch (err) {
     console.error('[kafka-consumer] Error creating patient profile:', err.message);
   }
@@ -124,6 +139,19 @@ async function handleUserDeactivated(payload) {
     await patient.save();
 
     console.log(`[kafka-consumer] ✓ Deactivated Patient profile for userId: ${userId}`);
+
+    // Publish PATIENT_DEACTIVATED so downstream services (audit, notification) are notified
+    publishEvent(TOPICS.PATIENT_DEACTIVATED, createEvent({
+      eventType: EVENTS.PATIENT_DEACTIVATED,
+      userId,
+      userRole: 'PATIENT',
+      serviceName: 'patient-management-service',
+      description: `Patient profile deactivated for userId: ${userId}`,
+      status: 'SUCCESS',
+      metadata: { patientId: patient._id.toString() },
+    })).catch((err) => {
+      console.error('[kafka-consumer] Failed to publish PATIENT_DEACTIVATED event:', err.message);
+    });
   } catch (err) {
     console.error('[kafka-consumer] Error deactivating patient profile:', err.message);
   }

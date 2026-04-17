@@ -125,6 +125,15 @@ const startConsumer = async () => {
             return;
           }
 
+          // Log the parsed event (truncated) for visibility in container logs
+          try {
+            const safePreview = JSON.stringify(eventData).slice(0, 1000);
+            console.log(`[Kafka Consumer] Event received on ${topic}: ${safePreview}`);
+          } catch (logErr) {
+            // Best-effort logging; do not fail consumption for logging issues
+            console.warn('[Kafka Consumer] Failed to stringify event preview:', logErr.message);
+          }
+
           // ── Step 3: Normalize PMS-native message format if needed ────
           if (PMS_RAW_TOPICS.has(topic)) {
             eventData = normalizePmsMessage(eventData, topic);

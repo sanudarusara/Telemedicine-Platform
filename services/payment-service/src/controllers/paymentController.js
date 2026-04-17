@@ -3,6 +3,10 @@ const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");
 const axios = require("axios");
+const { publishEvent } = require("../kafka");
+const TOPICS = require("../../shared/kafka/topics");
+const EVENTS = require("../../shared/kafka/events");
+const { createEvent } = require("../../shared/kafka/eventFactory");
 
 // Create Stripe payment
 exports.createPayment = async (req, res) => {
@@ -182,6 +186,24 @@ exports.handleStripeWebhook = async (req, res) => {
               paymentStatus: "paid",
             }
           );
+
+          // Publish PAYMENT_COMPLETED event
+          publishEvent(TOPICS.PAYMENT_EVENTS, createEvent({
+            eventType: EVENTS.PAYMENT_COMPLETED,
+            userId: payment.userId.toString(),
+            serviceName: 'payment-service',
+            description: `Payment completed for appointment ${payment.appointmentId}`,
+            status: 'SUCCESS',
+            metadata: {
+              paymentId: payment._id.toString(),
+              appointmentId: payment.appointmentId.toString(),
+              amount: payment.amount,
+              currency: payment.currency,
+              transactionId: session.id,
+            },
+          })).catch((err) => {
+            console.error('[payment-service] Failed to publish PAYMENT_COMPLETED event:', err.message);
+          });
         }
       }
     }

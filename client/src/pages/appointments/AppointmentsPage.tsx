@@ -92,7 +92,6 @@ export default function AppointmentsPage() {
   const [paymentModalOpen, setPaymentModalOpen] = React.useState(false);
   const [paymentAppointment, setPaymentAppointment] = React.useState<any | null>(null);
   const [paymentMethod, setPaymentMethod] = React.useState<"PAYHERE" | "STRIPE">("PAYHERE");
-  const [paymentLoading, setPaymentLoading] = React.useState(false);
 
   // Report viewing state
   const [reportViewerOpen, setReportViewerOpen] = React.useState(false);
@@ -305,6 +304,12 @@ export default function AppointmentsPage() {
     }
   };
 
+  const proceedPayment = async () => {
+    if (!paymentAppointment) return;
+    setPaymentModalOpen(false);
+    await handlePayment({ ...paymentAppointment, selectedPaymentMethod: paymentMethod });
+  };
+
   const handlePayment = async (appointment: any) => {
     try {
       setPaymentLoading(appointment.id);
@@ -318,7 +323,7 @@ export default function AppointmentsPage() {
         appointmentId: appointment.id || appointment.raw?._id,
         amount: appointment.fee,
         currency: 'usd',
-        paymentMethod: 'STRIPE',
+        paymentMethod: appointment.selectedPaymentMethod || 'STRIPE',
       });
 
       const { checkoutUrl } = result as any;

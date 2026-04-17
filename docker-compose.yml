@@ -191,6 +191,8 @@ services:
       DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      SERVICE_USER_ID: notification-service
+      SERVICE_USER_NAME: notification service
       EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
       EMAIL_PORT: ${EMAIL_PORT:-587}
       EMAIL_USER: ${EMAIL_USER:-}
@@ -227,6 +229,8 @@ services:
       DOCKER_ENV: "true"
       KAFKA_BROKER: kafka:29092
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
+      SERVICE_USER_ID: appointment-service
+      SERVICE_USER_NAME: appointment service
       PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
       DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
@@ -251,19 +255,14 @@ services:
     restart: unless-stopped
     ports:
       - "5004:5004"
+    env_file:
+      - ./services/.env
     environment:
       NODE_ENV: production
       PORT: 5004
       MONGO_URI: mongodb://mongodb:27017/payment-service
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:8082}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      PAYHERE_MERCHANT_ID: ${PAYHERE_MERCHANT_ID:-}
-      PAYHERE_MERCHANT_SECRET: ${PAYHERE_MERCHANT_SECRET:-}
-      PAYHERE_RETURN_URL: ${PAYHERE_RETURN_URL:-http://localhost:8082/payment/success}
-      PAYHERE_CANCEL_URL: ${PAYHERE_CANCEL_URL:-http://localhost:8082/payment/cancel}
-      PAYHERE_NOTIFY_URL: ${PAYHERE_NOTIFY_URL:-}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -307,10 +306,11 @@ services:
     restart: unless-stopped
     ports:
       - "5006:5006"
+    env_file:
+      - ./services/.env
     environment:
       NODE_ENV: production
       PORT: 5006
-      MONGO_URI: ${DOCTOR_MONGO_URI:-mongodb://mongodb:27017/doctor-service}
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
     depends_on:
@@ -366,7 +366,7 @@ services:
       NODE_ENV: production
       PORT: 5400
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_this_in_production_must_be_32_chars_minimum}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random-use-strong-random}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-gateway-secret-key-change-in-production-use-strong-random}
       AUTH_SERVICE_URL: http://auth-service:5000
       PATIENT_SERVICE_URL: http://patient-service:5001
       AUDIT_SERVICE_URL: http://audit-service:5002

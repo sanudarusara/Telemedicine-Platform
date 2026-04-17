@@ -3,6 +3,10 @@ const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");
 const axios = require("axios");
+const { publishEvent } = require("../kafka");
+const TOPICS = require("../../shared/kafka/topics");
+const EVENTS = require("../../shared/kafka/events");
+const { createEvent } = require("../../shared/kafka/eventFactory");
 
 // Create Stripe payment
 exports.createPayment = async (req, res) => {
@@ -50,7 +54,7 @@ exports.createPayment = async (req, res) => {
         userId,
         appointmentId,
       },
-      success_url: `${process.env.CLIENT_URL}/appointments?payment=success`,
+      success_url: `${process.env.CLIENT_URL}/appointments?payment=success&paymentId=${payment._id}`,
       cancel_url: `${process.env.CLIENT_URL}/appointments?payment=cancel`,
     });
 
@@ -77,8 +81,22 @@ exports.confirmPayment = async (req, res) => {
       return res.status(404).json({ message: "Payment not found" });
     }
 
+    if (payment.status === "SUCCESS") {
+      return res.status(200).json({ message: "Payment already confirmed", payment });
+    }
+
     payment.status = "SUCCESS";
     await payment.save();
+
+    try {
+      const appointmentServiceUrl = process.env.APPOINTMENT_SERVICE_URL || "http://appointment-service:3001";
+      await axios.patch(
+        `${appointmentServiceUrl}/api/appointments/${payment.appointmentId}/status`,
+        { paymentStatus: "paid" }
+      );
+    } catch (apptErr) {
+      console.error("Failed to update appointment payment status:", apptErr.message);
+    }
 
     res.status(200).json({
       message: "Payment updated to SUCCESS",
@@ -182,6 +200,24 @@ exports.handleStripeWebhook = async (req, res) => {
               paymentStatus: "paid",
             }
           );
+
+          // Publish PAYMENT_COMPLETED event
+          publishEvent(TOPICS.PAYMENT_EVENTS, createEvent({
+            eventType: EVENTS.PAYMENT_COMPLETED,
+            userId: payment.userId.toString(),
+            serviceName: 'payment-service',
+            description: `Payment completed for appointment ${payment.appointmentId}`,
+            status: 'SUCCESS',
+            metadata: {
+              paymentId: payment._id.toString(),
+              appointmentId: payment.appointmentId.toString(),
+              amount: payment.amount,
+              currency: payment.currency,
+              transactionId: session.id,
+            },
+          })).catch((err) => {
+            console.error('[payment-service] Failed to publish PAYMENT_COMPLETED event:', err.message);
+          });
         }
       }
     }
@@ -242,8 +278,8 @@ exports.createPayHerePayment = async (req, res) => {
 
     res.status(201).json({
       merchant_id: process.env.PAYHERE_MERCHANT_ID,
-      return_url: process.env.PAYHERE_RETURN_URL,
-      cancel_url: process.env.PAYHERE_CANCEL_URL,
+      return_url: `${process.env.CLIENT_URL || process.env.PAYHERE_RETURN_URL}/appointments?payment=success&paymentId=${payment._id}`,
+      cancel_url: `${process.env.CLIENT_URL || process.env.PAYHERE_CANCEL_URL}/appointments?payment=cancel`,
       notify_url: process.env.PAYHERE_NOTIFY_URL,
 
       order_id: payment._id.toString(),

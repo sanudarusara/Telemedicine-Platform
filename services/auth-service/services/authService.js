@@ -163,6 +163,17 @@ class AuthService {
       isVerified: updated.isVerified,
     };
   }
+
+  async deleteUser(userId) {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new Error('User not found');
+    await userRepository.delete(userId);
+    return {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    };
+  }
 }
 
 module.exports = new AuthService();

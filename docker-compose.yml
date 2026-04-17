@@ -225,7 +225,8 @@ services:
 
   payment-service:
     build:
-      context: ./services/payment-service
+      context: ./services
+      dockerfile: payment-service/Dockerfile
     container_name: healthcare-payment-service
     restart: unless-stopped
     ports:

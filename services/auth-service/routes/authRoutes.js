@@ -41,6 +41,9 @@ router.patch('/users/:userId/status', validateGatewayRequest, authController.upd
 // @route   PATCH /api/auth/users/:userId/role  (ADMIN)
 router.patch('/users/:userId/role', validateGatewayRequest, authController.updateUserRole.bind(authController));
 
+// @route   DELETE /api/auth/users/:userId  (ADMIN)
+router.delete('/users/:userId', validateGatewayRequest, authController.deleteUser.bind(authController));
+
 // @route   PATCH /api/auth/users/:userId/verify  (ADMIN)
 router.patch('/users/:userId/verify', validateGatewayRequest, authController.verifyDoctor.bind(authController));
 

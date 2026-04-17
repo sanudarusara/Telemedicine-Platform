@@ -34,7 +34,7 @@ class PatientController {
       
       // Publish patient profile update event
       const event = createEvent({
-        eventType: EVENTS.PATIENT_UPDATED,
+        eventType: EVENTS.PROFILE_UPDATED,
         userId: req.user.id,
         userRole: 'PATIENT',
         serviceName: 'patient-management-service',
@@ -47,7 +47,7 @@ class PatientController {
         },
       });
 
-      publishEvent(TOPICS.PATIENT_UPDATED, event).catch(() => {});
+      publishEvent(TOPICS.PATIENT_EVENTS, event).catch(() => {});
 
       return res.status(200).json({
         success: true,

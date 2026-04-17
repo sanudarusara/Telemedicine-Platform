@@ -4,9 +4,9 @@ const externalServices = require('./externalServices');
 const { v4: uuidv4 } = require('uuid');
 
 // Kafka event publishing
-const { createEvent } = require('../../../shared/kafka/eventFactory');
-const TOPICS = require('../../../shared/kafka/topics');
-const EVENTS = require('../../../shared/kafka/events');
+const { createEvent } = require('../../shared/kafka/eventFactory');
+const TOPICS = require('../../shared/kafka/topics');
+const EVENTS = require('../../shared/kafka/events');
 const kafka = require('../kafka');
 
 class AppointmentService {

@@ -8,7 +8,7 @@ const {
   updatePaymentStatus,
   handleStripeWebhook,
   createPayHerePayment,
-  handlePayHereNotify
+  handlePayHereNotify,
 } = require("../controllers/paymentController");
 
 router.post("/confirm/:paymentId", confirmPayment);

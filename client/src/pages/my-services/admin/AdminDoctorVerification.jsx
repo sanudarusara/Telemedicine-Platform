@@ -43,21 +43,37 @@ const AdminDoctorVerification = () => {
 
   const notify = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(""), 4000); };
 
-  const handleApprove = async (doctor) => {
-    setActionLoading(`approve-${doctor._id}`);
-    setError("");
-    try {
-      const result = await approveDoctorProfile(doctor._id);
-      setDoctors((prev) =>
-        prev.map((d) => (d._id === doctor._id ? { ...d, status: "approved", isActive: true } : d))
-      );
-      notify(`Dr. ${doctor.name} approved. ${result.slotsGenerated} slots generated for the next 30 days.`);
-    } catch (e) {
-      setError(e?.message || "Failed to approve doctor");
-    } finally {
-      setActionLoading(null);
-    }
-  };
+ const handleApprove = async (doctor) => {
+  setActionLoading(`approve-${doctor._id}`);
+  setError("");
+
+  try {
+    const result = await approveDoctorProfile(doctor._id);
+
+    const slotsGenerated = Number(
+      result?.slotsGenerated ??
+      result?.data?.slotsGenerated ??
+      0
+    );
+
+    setDoctors((prev) =>
+      prev.map((d) =>
+        d._id === doctor._id
+          ? { ...d, status: "approved", isActive: true }
+          : d
+      )
+    );
+
+    notify(
+      `Dr. ${doctor.name} approved. ${slotsGenerated} slots generated for the next 30 days.`
+    );
+  } catch (e) {
+    console.error("Approve doctor failed:", e);
+    setError(e?.message || "Failed to approve doctor");
+  } finally {
+    setActionLoading(null);
+  }
+};
 
   const handleReject = async (doctor) => {
     setActionLoading(`reject-${doctor._id}`);

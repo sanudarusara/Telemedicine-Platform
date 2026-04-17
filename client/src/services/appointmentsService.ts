@@ -11,10 +11,25 @@ export type Appointment = {
   timeSlot?: string;
   status?: string;
   [key: string]: any;
-}
+};
 
 function throwErr(err: unknown): never {
   throw new Error(extractErrorMessage(err));
+}
+
+function normalizeDateForSlotQuery(date: string): string {
+  if (!date) return date;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
+  }
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  return parsed.toISOString().slice(0, 10);
 }
 
 export async function getAppointments(params?: {
@@ -23,21 +38,32 @@ export async function getAppointments(params?: {
   status?: string;
 }): Promise<Appointment[]> {
   const qs = new URLSearchParams();
-  if (params?.patientId) qs.set('patientId', params.patientId);
-  if (params?.doctorId) qs.set('doctorId', params.doctorId);
-  if (params?.status) qs.set('status', params.status);
-  const url = `/api/appointments${qs.toString() ? `?${qs}` : ''}`;
+  if (params?.patientId) qs.set("patientId", params.patientId);
+  if (params?.doctorId) qs.set("doctorId", params.doctorId);
+  if (params?.status) qs.set("status", params.status);
+  const url = `/api/appointments${qs.toString() ? `?${qs}` : ""}`;
+
   try {
-    const { data } = await apiClient.get<{ success: boolean; count: number; data: Appointment[] }>(url);
+    const { data } = await apiClient.get<{
+      success: boolean;
+      count: number;
+      data: Appointment[];
+    }>(url);
     return data?.data || [];
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function getAppointmentById(id: string): Promise<Appointment | null> {
   try {
-    const { data } = await apiClient.get<{ success: boolean; data: Appointment }>(`/api/appointments/${id}`);
+    const { data } = await apiClient.get<{ success: boolean; data: Appointment }>(
+      `/api/appointments/${id}`
+    );
     return data?.data || null;
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function updateAppointmentStatus(
@@ -46,16 +72,29 @@ export async function updateAppointmentStatus(
   notes?: string
 ): Promise<Appointment> {
   try {
-    const { data } = await apiClient.patch<{ success: boolean; data: Appointment }>(`/api/appointments/${id}/status`, { status, notes });
+    const { data } = await apiClient.patch<{ success: boolean; data: Appointment }>(
+      `/api/appointments/${id}/status`,
+      { status, notes }
+    );
     return data?.data;
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
-export async function cancelAppointment(id: string, reason?: string): Promise<Appointment> {
+export async function cancelAppointment(
+  id: string,
+  reason?: string
+): Promise<Appointment> {
   try {
-    const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(`/api/appointments/${id}/cancel`, { reason });
+    const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(
+      `/api/appointments/${id}/cancel`,
+      { reason }
+    );
     return data?.data;
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function rescheduleAppointment(
@@ -65,9 +104,14 @@ export async function rescheduleAppointment(
   reason?: string
 ): Promise<Appointment> {
   try {
-    const { data } = await apiClient.put<{ success: boolean; data: Appointment }>(`/api/appointments/${id}/reschedule`, { newDate, newTimeSlot, reason });
+    const { data } = await apiClient.put<{ success: boolean; data: Appointment }>(
+      `/api/appointments/${id}/reschedule`,
+      { newDate, newTimeSlot, reason }
+    );
     return data?.data;
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    throwErr(err);
+  }
 }
 
 export async function createAppointment(payload: {
@@ -81,52 +125,103 @@ export async function createAppointment(payload: {
   paymentAmount?: number;
   reportFile?: File | null;
 }): Promise<Appointment> {
-  const url = '/api/appointments';
+  const url = "/api/appointments";
 
   if (payload.reportFile) {
-    // Multipart upload — axios sets Content-Type with boundary automatically
     const form = new FormData();
-    form.append('patientId', payload.patientId);
-    form.append('doctorId', payload.doctorId);
-    form.append('date', payload.date);
-    form.append('timeSlot', payload.timeSlot);
-    if (payload.consultationType) form.append('consultationType', payload.consultationType);
-    if (payload.symptoms) form.append('symptoms', payload.symptoms);
-    if (payload.notes) form.append('notes', payload.notes);
-    if (typeof payload.paymentAmount !== 'undefined')
-      form.append('paymentAmount', String(payload.paymentAmount));
-    form.append('report', payload.reportFile);
+    form.append("patientId", payload.patientId);
+    form.append("doctorId", payload.doctorId);
+    form.append("date", payload.date);
+    form.append("timeSlot", payload.timeSlot);
+    if (payload.consultationType) form.append("consultationType", payload.consultationType);
+    if (payload.symptoms) form.append("symptoms", payload.symptoms);
+    if (payload.notes) form.append("notes", payload.notes);
+    if (typeof payload.paymentAmount !== "undefined") {
+      form.append("paymentAmount", String(payload.paymentAmount));
+    }
+    form.append("report", payload.reportFile);
+
     try {
-      const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(url, form, {
-        headers: { 'Content-Type': undefined },
+      console.log("[appointmentsService] createAppointment multipart payload:", {
+        patientId: payload.patientId,
+        doctorId: payload.doctorId,
+        date: payload.date,
+        timeSlot: payload.timeSlot,
+        consultationType: payload.consultationType,
       });
+
+      const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(
+        url,
+        form,
+        {
+          headers: { "Content-Type": undefined as any },
+        }
+      );
       return data?.data;
-    } catch (err) { throwErr(err); }
+    } catch (err) {
+      console.error("[appointmentsService] createAppointment multipart error:", err);
+      throwErr(err);
+    }
   }
 
   try {
-    const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(url, payload);
+    console.log("[appointmentsService] createAppointment payload:", payload);
+    const { data } = await apiClient.post<{ success: boolean; data: Appointment }>(
+      url,
+      payload
+    );
     return data?.data;
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    console.error("[appointmentsService] createAppointment error:", err);
+    throwErr(err);
+  }
 }
 
-export async function searchDoctors(params?: { specialty?: string; name?: string; date?: string }) {
+export async function searchDoctors(params?: {
+  specialty?: string;
+  name?: string;
+  date?: string;
+}) {
   const qs = new URLSearchParams();
-  if (params?.specialty) qs.set('specialty', params.specialty);
-  if (params?.name) qs.set('name', params.name);
-  if (params?.date) qs.set('date', params.date);
+  if (params?.specialty) qs.set("specialty", params.specialty);
+  if (params?.name) qs.set("name", params.name);
+  if (params?.date) qs.set("date", normalizeDateForSlotQuery(params.date));
+
+  const url = `/api/appointments/doctors/search${qs.toString() ? `?${qs}` : ""}`;
+
   try {
-    const { data } = await apiClient.get(`/api/appointments/doctors/search${qs.toString() ? `?${qs}` : ''}`);
+    console.log("[appointmentsService] searchDoctors ->", url);
+    const { data } = await apiClient.get(url);
+    console.log("[appointmentsService] searchDoctors <-", data);
     return (data as any)?.data || [];
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    console.error("[appointmentsService] searchDoctors error:", err);
+    throwErr(err);
+  }
 }
 
 export async function getAvailableSlots(doctorId: string, date: string) {
-  const qs = new URLSearchParams({ doctorId, date });
+  const normalizedDate = normalizeDateForSlotQuery(date);
+  const qs = new URLSearchParams({ doctorId, date: normalizedDate });
+  const url = `/api/appointments/doctors/available-slots?${qs}`;
+
   try {
-    const { data } = await apiClient.get(`/api/appointments/doctors/available-slots?${qs}`);
+    console.log("[appointmentsService] getAvailableSlots request:", {
+      doctorId,
+      originalDate: date,
+      normalizedDate,
+      url,
+    });
+
+    const { data } = await apiClient.get(url);
+
+    console.log("[appointmentsService] getAvailableSlots response:", data);
+
     return (data as any)?.data || [];
-  } catch (err) { throwErr(err); }
+  } catch (err) {
+    console.error("[appointmentsService] getAvailableSlots error:", err);
+    throwErr(err);
+  }
 }
 
 export const downloadReceipt = async (appointmentId: string) => {

@@ -1,167 +1,232 @@
-const jwt = require('jsonwebtoken');
-const userRepository = require('../repositories/userRepository');
+const jwt = require("jsonwebtoken");
+const userRepository = require("../repositories/userRepository");
 
-/**
- * AuthService — handles registration, login, token generation, and account management.
- * Business logic lives here; the repository handles the DB queries.
- */
 class AuthService {
-  /**
-   * Sign a JWT that encodes the user's id, role, email, and name.
-   * Including email and name allows the API Gateway to inject user headers
-   * into downstream requests without a database lookup (stateless verification).
-   */
-  generateToken(user) {
+  normalizeRole(role = "PATIENT") {
+    return String(role || "PATIENT").trim().toUpperCase();
+  }
+
+  sanitizeUser(user) {
+    if (!user) return null;
+
+    const obj =
+      typeof user.toObject === "function"
+        ? user.toObject({ virtuals: true })
+        : { ...user };
+
+    if (obj._id && !obj.id) {
+      obj.id = String(obj._id);
+    }
+
+    delete obj.password;
+    return obj;
+  }
+
+  signToken(user) {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
     return jwt.sign(
       {
-        id: user._id,
-        role: user.role,
+        id: String(user._id || user.id),
         email: user.email,
+        role: user.role,
         name: user.name,
       },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      secret,
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+      }
     );
   }
 
-  /**
-   * Register a new user.
-   * Returns a signed JWT plus the sanitised user object.
-   * Patient profile creation is handled by patient-service via Kafka consumer.
-   */
   async register(userData) {
-    const { name, email: rawEmail, password, role } = userData;
-    const email = (rawEmail || '').toLowerCase().trim();
+    const name = String(userData?.name || "").trim();
+    const email = String(userData?.email || "").toLowerCase().trim();
+    const password = String(userData?.password || "");
+    const role = this.normalizeRole(userData?.role || "PATIENT");
 
-    if (!name || !email || !password) {
-      throw new Error('Name, email, and password are required');
+    if (!name) throw new Error("Name is required");
+    if (!email) throw new Error("Email is required");
+    if (!password) throw new Error("Password is required");
+
+    if (!["PATIENT", "DOCTOR", "ADMIN"].includes(role)) {
+      throw new Error("Invalid role");
     }
 
-    const existing = await userRepository.findByEmail(email);
-    if (existing) {
-      throw new Error('An account with this email already exists');
+    const existingUser = await userRepository.findByEmail(email);
+    if (existingUser) {
+      throw new Error("An account with this email already exists");
     }
 
-    const user = await userRepository.create({ name, email, password, role });
-    const token = this.generateToken(user);
+    const isDoctor = role === "DOCTOR";
+
+    const rawFee =
+      userData?.fee === undefined || userData?.fee === null || userData?.fee === ""
+        ? 0
+        : Number(userData.fee);
+
+    const createdUser = await userRepository.create({
+      name,
+      email,
+      password,
+      role,
+      specialty: userData?.specialty || "",
+      fee: Number.isFinite(rawFee) ? rawFee : 0,
+      phone: userData?.phone || "",
+      isActive: isDoctor ? false : true,
+      isVerified: isDoctor ? false : true,
+    });
+
+    const safeUser = this.sanitizeUser(createdUser);
+
+    // Doctors must wait for admin approval before login.
+    // So no JWT is returned here for doctor registrations.
+    if (isDoctor) {
+      return {
+        user: safeUser,
+        requiresVerification: true,
+      };
+    }
+
+    const token = this.signToken(createdUser);
 
     return {
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: safeUser,
     };
   }
 
-  /**
-   * Authenticate an existing user with email + password.
-   * Returns a signed JWT plus the sanitised user object.
-   */
   async login(email, password) {
-    const normalizedEmail = (email || '').toLowerCase().trim();
+    const normalizedEmail = String(email || "").toLowerCase().trim();
     const user = await userRepository.findByEmail(normalizedEmail);
 
-    if (!user || !(await user.comparePassword(password))) {
-      throw new Error('Invalid email or password');
+    if (!user) {
+      throw new Error("Invalid email or password");
     }
 
-    if (!user.isActive) {
-      throw new Error('This account has been deactivated');
+    const passwordMatches = await user.comparePassword(password);
+    if (!passwordMatches) {
+      throw new Error("Invalid email or password");
     }
 
-    const token = this.generateToken(user);
+    if (user.role === "DOCTOR" && !user.isVerified) {
+      throw new Error(
+        "Your doctor account is awaiting admin verification. Please wait for approval."
+      );
+    }
+
+    if (user.isActive === false) {
+      throw new Error("Your account is inactive. Please contact support.");
+    }
+
+    const token = this.signToken(user);
 
     return {
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: this.sanitizeUser(user),
     };
   }
 
   async getUserById(id) {
     const user = await userRepository.findById(id);
-    if (!user) throw new Error('User not found');
+    if (!user) {
+      throw new Error("User not found");
+    }
     return user;
   }
 
-  async deactivateAccount(userId) {
-    const user = await userRepository.findById(userId);
-    if (!user) throw new Error('User not found');
-
-    if (!user.isActive) {
-      throw new Error('Account is already deactivated');
+  async deactivateAccount(id) {
+    const updated = await userRepository.update(id, { isActive: false });
+    if (!updated) {
+      throw new Error("User not found");
     }
-
-    const updated = await userRepository.update(userId, { isActive: false });
-    return {
-      id: updated._id,
-      email: updated.email,
-      isActive: updated.isActive,
-    };
+    return updated;
   }
 
   async getAllUsers() {
     return userRepository.findAll();
   }
 
-  async getDoctors(filters = {}) {
-    return userRepository.findDoctors(filters);
-  }
-
-  async getDoctorById(id) {
-    const doctor = await userRepository.findById(id);
-    if (!doctor || doctor.role !== 'DOCTOR') throw new Error('Doctor not found');
-    return doctor;
-  }
-
   async updateUserStatus(userId, isActive) {
-    const user = await userRepository.findById(userId);
-    if (!user) throw new Error('User not found');
     const updated = await userRepository.update(userId, { isActive });
-    return {
-      id: updated._id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      isActive: updated.isActive,
-    };
+    if (!updated) {
+      throw new Error("User not found");
+    }
+    return updated;
   }
 
   async updateUserRole(userId, role) {
-    const validRoles = ['PATIENT', 'DOCTOR', 'ADMIN'];
-    if (!validRoles.includes(role)) throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
-    const user = await userRepository.findById(userId);
-    if (!user) throw new Error('User not found');
-    const updated = await userRepository.update(userId, { role });
-    return {
-      id: updated._id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      isActive: updated.isActive,
-    };
+    const normalizedRole = this.normalizeRole(role);
+
+    if (!["PATIENT", "DOCTOR", "ADMIN"].includes(normalizedRole)) {
+      throw new Error("Invalid role");
+    }
+
+    const updateData = { role: normalizedRole };
+
+    if (normalizedRole === "DOCTOR") {
+      updateData.isVerified = false;
+      updateData.isActive = false;
+    } else {
+      updateData.isVerified = true;
+      updateData.isActive = true;
+    }
+
+    const updated = await userRepository.update(userId, updateData);
+    if (!updated) {
+      throw new Error("User not found");
+    }
+
+    return updated;
   }
 
   async verifyDoctor(userId) {
     const user = await userRepository.findById(userId);
-    if (!user) throw new Error('User not found');
-    if (user.role !== 'DOCTOR') throw new Error('User is not registered as a DOCTOR');
-    const updated = await userRepository.update(userId, { isVerified: true });
-    return {
-      id: updated._id,
-      name: updated.name,
-      email: updated.email,
-      role: updated.role,
-      isActive: updated.isActive,
-      isVerified: updated.isVerified,
-    };
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.role !== "DOCTOR") {
+      throw new Error("Only doctor accounts can be verified");
+    }
+
+    // Idempotent: if already verified, just return it.
+    if (user.isVerified && user.isActive) {
+      return user;
+    }
+
+    const updated = await userRepository.update(userId, {
+      isVerified: true,
+      isActive: true,
+    });
+
+    if (!updated) {
+      throw new Error("User not found");
+    }
+
+    return updated;
+  }
+
+  async getDoctors(filters = {}) {
+    return userRepository.findDoctors({
+      ...filters,
+      isActive: true,
+      isVerified: true,
+    });
+  }
+
+  async getDoctorById(id) {
+    const doctor = await userRepository.findById(id);
+
+    if (!doctor || doctor.role !== "DOCTOR") {
+      throw new Error("Doctor not found");
+    }
+
+    return doctor;
   }
 
   async deleteUser(userId) {

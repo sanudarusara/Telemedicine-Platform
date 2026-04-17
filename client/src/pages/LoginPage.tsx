@@ -1,17 +1,3 @@
-/**
- * Unified Login / Register page for ALL roles.
- *
- * Login flow:
- *   1. Try /api/auth/login  (patients, admins)
- *   2. If that fails, try /api/doctor-auth/login  (doctors)
- *   3. Read the role stored in localStorage by AuthContext and redirect.
- *
- * Register flow:
- *   ● Registers as a PATIENT via /api/auth/register
- *
- * URL hint: /login?register=1  → opens the register tab directly
- */
-
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -39,28 +25,54 @@ const LoginPage = () => {
     e.preventDefault();
     setError("");
 
-    if (!email || !password) { setError("Email and password are required"); return; }
-    if (mode === "register" && !name) { setError("Please enter your full name"); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+
+    if (mode === "register" && !name) {
+      setError("Please enter your full name");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
 
     setLoading(true);
+
     try {
       if (mode === "register") {
         await register(name, email, password);
       } else {
-        // Try patient / admin first, fall back to doctor endpoint
         try {
           await login(email, password);
-        } catch {
-          await loginDoctor(email, password);
+        } catch (firstErr: unknown) {
+          const firstMsg =
+            firstErr instanceof Error ? firstErr.message : "Authentication failed";
+
+          // Only switch to doctor flow if auth-service already accepted
+          // the credentials and returned a doctor account.
+          if (firstMsg === "__DOCTOR_ACCOUNT__") {
+            await loginDoctor(email, password);
+          } else {
+            // Keep original backend message like:
+            // "Your doctor account is awaiting admin verification..."
+            throw firstErr;
+          }
         }
       }
 
-      // AuthContext has already persisted the role into localStorage
       const role = (localStorage.getItem("role") || "").toLowerCase();
-      if (role === "doctor") navigate("/doctor/dashboard", { replace: true });
-      else if (role === "admin") navigate("/admin/dashboard", { replace: true });
-      else navigate("/patient-dashboard", { replace: true });
+
+      if (role === "doctor") {
+        navigate("/doctor/dashboard", { replace: true });
+      } else if (role === "admin") {
+        navigate("/admin/dashboard", { replace: true });
+      } else {
+        navigate("/patient-dashboard", { replace: true });
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Invalid credentials";
       setError(msg || "Sign in failed. Please check your credentials.");
@@ -73,11 +85,12 @@ const LoginPage = () => {
     setMode((m) => (m === "login" ? "register" : "login"));
     setError("");
     setName("");
+    setEmail("");
+    setPassword("");
   };
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
-      {/* Mini nav */}
       <nav className="border-b border-border/60 bg-background h-14 flex items-center px-4">
         <Link
           to="/"
@@ -90,10 +103,8 @@ const LoginPage = () => {
         </div>
       </nav>
 
-      {/* Form */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md space-y-6">
-          {/* Heading */}
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-bold">
               {mode === "login" ? "Welcome back" : "Create your account"}
@@ -108,14 +119,12 @@ const LoginPage = () => {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Error banner */}
                 {error && (
                   <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {error}
                   </div>
                 )}
 
-                {/* Name — register only */}
                 {mode === "register" && (
                   <div className="space-y-1.5">
                     <Label htmlFor="name">Full name</Label>
@@ -133,7 +142,6 @@ const LoginPage = () => {
                   </div>
                 )}
 
-                {/* Email */}
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -150,7 +158,6 @@ const LoginPage = () => {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div className="space-y-1.5">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
@@ -162,23 +169,30 @@ const LoginPage = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-9"
-                      autoComplete={mode === "register" ? "new-password" : "current-password"}
+                      autoComplete={
+                        mode === "register" ? "new-password" : "current-password"
+                      }
                     />
                   </div>
                 </div>
 
                 <Button type="submit" className="w-full h-11" disabled={loading}>
                   {loading
-                    ? mode === "register" ? "Creating account…" : "Signing in…"
-                    : mode === "register" ? "Create account" : "Sign in"}
+                    ? mode === "register"
+                      ? "Creating account…"
+                      : "Signing in…"
+                    : mode === "register"
+                    ? "Create account"
+                    : "Sign in"}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* Toggle */}
           <p className="text-center text-sm text-muted-foreground">
-            {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+            {mode === "login"
+              ? "Don't have an account? "
+              : "Already have an account? "}
             <button
               type="button"
               onClick={switchMode}
@@ -197,7 +211,10 @@ const LoginPage = () => {
           {mode === "login" && (
             <p className="text-center text-sm text-muted-foreground">
               Are you a healthcare provider?{" "}
-              <Link to="/doctor/register" className="text-primary hover:underline font-medium">
+              <Link
+                to="/doctor/register"
+                className="text-primary hover:underline font-medium"
+              >
                 Register as a Doctor
               </Link>
             </p>

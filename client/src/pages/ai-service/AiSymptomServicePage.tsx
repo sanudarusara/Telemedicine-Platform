@@ -45,7 +45,7 @@ const GENDER_OPTIONS = ["Male", "Female", "Other"];
 type Severity = "LOW" | "MEDIUM" | "HIGH";
 
 type SymptomFormData = {
-    userId: string;
+    userId?: string | null;
     symptoms: string[];
     age: string;
     gender: string;
@@ -75,7 +75,7 @@ function getSeverityStyles(severity?: Severity) {
 
 export default function AiSymptomServicePage() {
     const { user } = useAuth();
-    const currentUserId = (user as any)?._id || (user as any)?.id || (user as any)?.userId || "guest";
+    const currentUserId = (user as any)?._id || (user as any)?.id || (user as any)?.userId || null;
 
     const [symptomInput, setSymptomInput] = useState<string>("");
     const [formData, setFormData] = useState<SymptomFormData>({
@@ -205,7 +205,7 @@ export default function AiSymptomServicePage() {
 
     function handleClearForm() {
         setFormData({
-            userId: "user123",
+            userId: "currentUserId",
             symptoms: [],
             age: "",
             gender: "",

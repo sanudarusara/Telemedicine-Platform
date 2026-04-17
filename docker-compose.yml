@@ -255,11 +255,12 @@ services:
     restart: unless-stopped
     ports:
       - "5005:5005"
+    env_file:
+      - ./services/.env
     environment:
       NODE_ENV: production
       PORT: 5005
       MONGO_URI: mongodb+srv://Doctor:doctor123@farm.asobfd5.mongodb.net/ai-symptom-service?retryWrites=true&w=majority
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5005/"]
       interval: 30s

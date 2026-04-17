@@ -54,7 +54,7 @@ exports.createPayment = async (req, res) => {
         userId,
         appointmentId,
       },
-      success_url: `${process.env.CLIENT_URL}/appointments?payment=success`,
+      success_url: `${process.env.CLIENT_URL}/appointments?payment=success&paymentId=${payment._id}`,
       cancel_url: `${process.env.CLIENT_URL}/appointments?payment=cancel`,
     });
 
@@ -81,8 +81,22 @@ exports.confirmPayment = async (req, res) => {
       return res.status(404).json({ message: "Payment not found" });
     }
 
+    if (payment.status === "SUCCESS") {
+      return res.status(200).json({ message: "Payment already confirmed", payment });
+    }
+
     payment.status = "SUCCESS";
     await payment.save();
+
+    try {
+      const appointmentServiceUrl = process.env.APPOINTMENT_SERVICE_URL || "http://appointment-service:3001";
+      await axios.patch(
+        `${appointmentServiceUrl}/api/appointments/${payment.appointmentId}/status`,
+        { paymentStatus: "paid" }
+      );
+    } catch (apptErr) {
+      console.error("Failed to update appointment payment status:", apptErr.message);
+    }
 
     res.status(200).json({
       message: "Payment updated to SUCCESS",
@@ -264,8 +278,8 @@ exports.createPayHerePayment = async (req, res) => {
 
     res.status(201).json({
       merchant_id: process.env.PAYHERE_MERCHANT_ID,
-      return_url: process.env.PAYHERE_RETURN_URL,
-      cancel_url: process.env.PAYHERE_CANCEL_URL,
+      return_url: `${process.env.CLIENT_URL || process.env.PAYHERE_RETURN_URL}/appointments?payment=success&paymentId=${payment._id}`,
+      cancel_url: `${process.env.CLIENT_URL || process.env.PAYHERE_CANCEL_URL}/appointments?payment=cancel`,
       notify_url: process.env.PAYHERE_NOTIFY_URL,
 
       order_id: payment._id.toString(),

@@ -1,12 +1,12 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAppointments, cancelAppointment, searchDoctors, getAvailableSlots, createAppointment, downloadReceipt } from "@/services/appointmentsService";
 import type { Appointment } from "@/services/appointmentsService";
-import { createPayment, createPayherePayment } from "@/services/paymentService";
+import { createPayment, createPayherePayment, confirmPayment } from "@/services/paymentService";
 import { Calendar, Filter, Search, Plus, Clock, MapPin, DollarSign, User, Stethoscope, X, Loader2, CreditCard, Calendar as CalendarIcon, FileText, Download, Eye, Building, Video } from "lucide-react";
 import {
   Dialog,
@@ -76,6 +76,7 @@ function mapAppointment(a: any, doctorDetails?: any) {
 
 export default function AppointmentsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [appointments, setAppointments] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -112,6 +113,23 @@ export default function AppointmentsPage() {
   const [cancelLoading, setCancelLoading] = React.useState(false);
 
   const [paymentLoading, setPaymentLoading] = React.useState<string | null>(null);
+
+  // Handle return from payment gateway (Stripe or PayHere)
+  React.useEffect(() => {
+    const paymentResult = searchParams.get("payment");
+    const paymentId = searchParams.get("paymentId");
+
+    if (paymentResult === "success" && paymentId) {
+      confirmPayment(paymentId)
+        .catch((err) => console.error("Failed to confirm payment:", err))
+        .finally(() => {
+          // Clean up query params from URL without reloading
+          setSearchParams({}, { replace: true });
+        });
+    } else if (paymentResult === "cancel") {
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   // Fetch appointments and enrich with doctor/center details
   React.useEffect(() => {

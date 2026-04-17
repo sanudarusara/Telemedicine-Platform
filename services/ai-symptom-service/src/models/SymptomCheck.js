@@ -4,7 +4,8 @@ const symptomCheckSchema = new mongoose.Schema(
   {
     userId: {
       type: String,
-      required: true,
+      required: false,
+      default: null,
     },
     symptoms: {
       type: [String],

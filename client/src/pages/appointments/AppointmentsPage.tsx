@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,7 @@ function mapAppointment(a: any, doctorDetails?: any) {
 
 export default function AppointmentsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [appointments, setAppointments] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -114,105 +115,110 @@ export default function AppointmentsPage() {
   const [paymentLoading, setPaymentLoading] = React.useState<string | null>(null);
 
   // Fetch appointments and enrich with doctor/center details
-  React.useEffect(() => {
-    let mounted = true;
+  const fetchAndEnrichAppointments = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    async function fetchAndEnrichAppointments() {
-      setLoading(true);
-      setError(null);
+    try {
+      const params: any = {};
+      if (statusFilter) params.status = statusFilter;
 
+      let patientId = null;
       try {
-        const params: any = {};
-        if (statusFilter) params.status = statusFilter;
-
-        let patientId = null;
-        try {
-          const raw = localStorage.getItem('user');
-          if (raw) {
-            const u = JSON.parse(raw);
-            patientId = u._id || u.id || u.patientId || u.userId || null;
-            if (patientId) {
-              params.patientId = patientId;
-              setUserId(String(patientId));
-              setUserProfile(u);
-            }
+        const raw = localStorage.getItem('user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          patientId = u._id || u.id || u.patientId || u.userId || null;
+          if (patientId) {
+            params.patientId = patientId;
+            setUserId(String(patientId));
+            setUserProfile(u);
           }
-        } catch (e) {
-          console.error("Failed to parse user from localStorage:", e);
         }
+      } catch (e) {
+        console.error("Failed to parse user from localStorage:", e);
+      }
 
-        if (!patientId) {
-          setError("Please sign in to view your appointments");
-          setLoading(false);
-          return;
-        }
+      if (!patientId) {
+        setError("Please sign in to view your appointments");
+        setLoading(false);
+        return;
+      }
 
-        const appointmentsData = await getAppointments(params);
+      const appointmentsData = await getAppointments(params);
 
-        if (!mounted) return;
+      let allDoctors: any[] = [];
+      try {
+        const doctorsResult = await searchDoctors({});
+        allDoctors = getArrayFromResponse(doctorsResult);
+      } catch (err) {
+        console.error("Failed to fetch doctors list:", err);
+      }
 
-        let allDoctors: any[] = [];
-        try {
-          const doctorsResult = await searchDoctors({});
-          allDoctors = getArrayFromResponse(doctorsResult);
-        } catch (err) {
-          console.error("Failed to fetch doctors list:", err);
-        }
+      const enriched = appointmentsData.map((appointment: any) => {
+        let doctorDetails = null;
+        const doctorId = typeof appointment.doctorId === 'string'
+          ? appointment.doctorId
+          : appointment.doctorId?._id || appointment.doctorId?.id;
 
-        const enriched = appointmentsData.map((appointment: any) => {
-          let doctorDetails = null;
-          const doctorId = typeof appointment.doctorId === 'string'
-            ? appointment.doctorId
-            : appointment.doctorId?._id || appointment.doctorId?.id;
-
-          if (doctorId && allDoctors.length > 0) {
-            const foundDoctor = allDoctors.find((d: any) => (d._id === doctorId || d.id === doctorId));
-            if (foundDoctor) {
-              doctorDetails = {
-                name: foundDoctor.name || foundDoctor.fullName,
-                specialty: foundDoctor.specialty || foundDoctor.specialization,
-                fee: foundDoctor.fee || foundDoctor.consultationFee || foundDoctor.feeAmount || 1500,
-                clinic: foundDoctor.clinic || (foundDoctor.center && foundDoctor.center.name) || (foundDoctor.centerId && foundDoctor.centerId.name),
-                clinicAddress: foundDoctor.center?.address || foundDoctor.centerId?.address || foundDoctor.address,
-              };
-            }
-          }
-
-          if (!doctorDetails && typeof appointment.doctorId === 'object' && appointment.doctorId !== null) {
+        if (doctorId && allDoctors.length > 0) {
+          const foundDoctor = allDoctors.find((d: any) => (d._id === doctorId || d.id === doctorId));
+          if (foundDoctor) {
             doctorDetails = {
-              name: appointment.doctorId.name,
-              specialty: appointment.doctorId.specialty || appointment.doctorId.specialization,
-              fee: appointment.doctorId.fee || appointment.doctorId.consultationFee || 1500,
-              clinic: appointment.doctorId.clinic,
+              name: foundDoctor.name || foundDoctor.fullName,
+              specialty: foundDoctor.specialty || foundDoctor.specialization,
+              fee: foundDoctor.fee || foundDoctor.consultationFee || foundDoctor.feeAmount || 1500,
+              clinic: foundDoctor.clinic || (foundDoctor.center && foundDoctor.center.name) || (foundDoctor.centerId && foundDoctor.centerId.name),
+              clinicAddress: foundDoctor.center?.address || foundDoctor.centerId?.address || foundDoctor.address,
             };
           }
+        }
 
-          return mapAppointment(appointment, doctorDetails);
-        });
+        if (!doctorDetails && typeof appointment.doctorId === 'object' && appointment.doctorId !== null) {
+          doctorDetails = {
+            name: appointment.doctorId.name,
+            specialty: appointment.doctorId.specialty || appointment.doctorId.specialization,
+            fee: appointment.doctorId.fee || appointment.doctorId.consultationFee || 1500,
+            clinic: appointment.doctorId.clinic,
+          };
+        }
 
-        setEnrichedAppointments(enriched);
-        setAppointments(appointmentsData);
-      } catch (err: any) {
-        console.error("Failed to fetch appointments:", err);
-        setError(err?.message || 'Failed to load appointments');
-      } finally {
-        setLoading(false);
-      }
+        return mapAppointment(appointment, doctorDetails);
+      });
+
+      setEnrichedAppointments(enriched);
+      setAppointments(appointmentsData);
+    } catch (err: any) {
+      console.error("Failed to fetch appointments:", err);
+      setError(err?.message || 'Failed to load appointments');
+    } finally {
+      setLoading(false);
     }
+  }, [statusFilter]);
 
+  React.useEffect(() => {
     fetchAndEnrichAppointments();
 
     const interval = setInterval(() => {
-      if (!loading) {
-        fetchAndEnrichAppointments();
-      }
+      fetchAndEnrichAppointments();
     }, 30000);
 
     return () => {
-      mounted = false;
       clearInterval(interval);
     };
-  }, [statusFilter]);
+  }, [fetchAndEnrichAppointments]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const paymentStatus = params.get("payment");
+
+    if (paymentStatus === "success") {
+      fetchAndEnrichAppointments();
+
+      // clean URL after reload
+      window.history.replaceState({}, document.title, "/appointments");
+    }
+  }, [location.search, fetchAndEnrichAppointments]);
 
   const filteredAppointments = React.useMemo(() => {
     if (!enrichedAppointments.length) return [];
@@ -1128,11 +1134,10 @@ export default function AppointmentsPage() {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("STRIPE")}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${
-                      paymentMethod === 'STRIPE'
+                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${paymentMethod === 'STRIPE'
                         ? 'border-primary bg-primary/5 text-primary'
                         : 'border-border hover:border-primary/50'
-                    }`}
+                      }`}
                   >
                     <CreditCard className="w-6 h-6" />
                     Stripe
@@ -1141,11 +1146,10 @@ export default function AppointmentsPage() {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("PAYHERE")}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${
-                      paymentMethod === 'PAYHERE'
+                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all text-sm font-medium ${paymentMethod === 'PAYHERE'
                         ? 'border-primary bg-primary/5 text-primary'
                         : 'border-border hover:border-primary/50'
-                    }`}
+                      }`}
                   >
                     <DollarSign className="w-6 h-6" />
                     PayHere

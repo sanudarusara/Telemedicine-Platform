@@ -5,7 +5,7 @@ const submitSymptoms = async (req, res) => {
   try {
     const { userId, symptoms, age, gender, duration, additionalNotes } = req.body;
 
-    if (!userId || !symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
+    if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
       return res.status(400).json({ message: "userId and symptoms are required" });
     }
 
@@ -18,7 +18,7 @@ const submitSymptoms = async (req, res) => {
     });
 
     const symptomCheck = await SymptomCheck.create({
-      userId,
+      userId: userId || null,
       symptoms,
       age,
       gender,

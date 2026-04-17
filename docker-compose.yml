@@ -206,7 +206,7 @@ services:
       SERVICE_USER_ID: appointment-service
       SERVICE_USER_NAME: appointment service
       PATIENT_SERVICE_URL: http://api-gateway:5400/api/patients
-      DOCTOR_SERVICE_URL: http://auth-service:5000/api/auth/doctors
+      DOCTOR_SERVICE_URL: http://doctor-service:5006/api/doctors
       DOCTOR_SLOTS_URL: http://doctor-service:5006/api/doctors
       NOTIFICATION_SERVICE_URL: http://notification-service:3003
     depends_on:

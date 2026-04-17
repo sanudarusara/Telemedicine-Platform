@@ -31,8 +31,6 @@ export default function ConsultationPage() {
   const { search } = useLocation();
   const qs = useMemo(() => new URLSearchParams(search), [search]);
 
-  const [centerSearch, setCenterSearch] = useState("");
-  const [centers, setCenters] = useState<any[]>([]);
   const [doctorSearch, setDoctorSearch] = useState("");
   const [specialtySearch, setSpecialtySearch] = useState("");
   const [dateSearch, setDateSearch] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -43,36 +41,6 @@ export default function ConsultationPage() {
 
   const searchTimer = useRef<any>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
-  useEffect(() => {
-    let mounted = true;
-    async function fetchCenters() {
-      try {
-        const base = API_BASE || "";
-        const url = base ? `${base}/api/centers` : `/api/centers`;
-        const res = await fetch(url, { method: "GET" });
-        const body = await res.json().catch(() => null);
-        if (!mounted) return;
-        const items = getArrayFromResponse(body || []);
-        setCenters(items.map((c: any) => ({
-          _id: c._id || c.id,
-          id: c.id || c._id,
-          name: c.name || c.title || "",
-          address: c.address || c.location || "",
-          district: c.district || "",
-          phone: c.phone || "",
-          isActive: c.isActive,
-        })));
-      } catch (e) {
-        // ignore silently
-      }
-    }
-
-    fetchCenters();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   // Load initial doctors
   useEffect(() => {
@@ -104,11 +72,6 @@ export default function ConsultationPage() {
     loadInitialDoctors();
     return () => { mounted = false; };
   }, []);
-
-  const centerSuggestions = useMemo(() => 
-    centers.map((c) => c.name).filter(Boolean).sort((a, b) => a.localeCompare(b)), 
-    [centers]
-  );
 
   const [selectedDoctor, setSelectedDoctor] = useState<any | null>(() => {
     const doctorParam = qs.get("doctor");
@@ -196,7 +159,6 @@ export default function ConsultationPage() {
       if (doctorSearch) params.name = doctorSearch;
       if (specialtySearch) params.specialty = specialtySearch;
       if (dateSearch) params.date = dateSearch;
-      if (centerSearch) params.center = centerSearch;
 
       const results = await searchDoctors(params);
       const formattedDoctors = getArrayFromResponse(results).map((d: any) => ({
@@ -223,10 +185,9 @@ export default function ConsultationPage() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
 
     const shouldSearch = Boolean(doctorSearch && doctorSearch.length >= 2) || 
-                        Boolean(specialtySearch) || 
-                        Boolean(centerSearch);
+                        Boolean(specialtySearch);
     
-    if (!shouldSearch && initialLoadDone && !doctorSearch && !specialtySearch && !centerSearch) {
+    if (!shouldSearch && initialLoadDone && !doctorSearch && !specialtySearch) {
       const reloadAllDoctors = async () => {
         try {
           setLoading(true);
@@ -260,7 +221,7 @@ export default function ConsultationPage() {
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [doctorSearch, specialtySearch, centerSearch, dateSearch]);
+  }, [doctorSearch, specialtySearch, dateSearch]);
 
   async function fetchSlotsForDoctor(doctorId: string, date: string) {
     if (!doctorId || !date) return;
@@ -379,7 +340,6 @@ export default function ConsultationPage() {
   }
 
   const clearFilters = () => {
-    setCenterSearch("");
     setDoctorSearch("");
     setSpecialtySearch("");
     setDateSearch(today);
@@ -412,26 +372,7 @@ export default function ConsultationPage() {
           {/* Search Filters Card */}
           <Card className="mb-8 shadow-md border-0 bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">Center Location</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      list="center-options" 
-                      value={centerSearch} 
-                      onChange={(e) => setCenterSearch(e.target.value)} 
-                      placeholder="Search by center..." 
-                      className="pl-10 h-11" 
-                    />
-                    <datalist id="center-options">
-                      {centerSuggestions.map((c) => (
-                        <option key={c} value={c} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-                
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-2 block">Doctor Name</label>
                   <div className="relative">
@@ -474,7 +415,7 @@ export default function ConsultationPage() {
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
-                {(centerSearch || doctorSearch || specialtySearch) && (
+                {(doctorSearch || specialtySearch) && (
                   <Button variant="outline" onClick={clearFilters} className="gap-2">
                     <X className="w-4 h-4" />
                     Clear Filters
@@ -502,7 +443,7 @@ export default function ConsultationPage() {
                     <Stethoscope className="w-16 h-16 mx-auto text-muted-foreground mb-4 opacity-50" />
                     <h3 className="text-xl font-semibold mb-2">No Doctors Found</h3>
                     <p className="text-muted-foreground">
-                      {centerSearch || doctorSearch || specialtySearch 
+                      { doctorSearch || specialtySearch 
                         ? "Try adjusting your search criteria" 
                         : "Start typing to search for doctors"}
                     </p>
